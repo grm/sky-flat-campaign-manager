@@ -2,8 +2,6 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-    xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.WPF.Base"
-    xmlns:nina="clr-namespace:NINA.View.Sequencer;assembly=NINA.WPF.Base"
     xmlns:instr="clr-namespace:NINA.Plugin.SkyFlatCampaignManager.Sequencer.Instructions"
     xmlns:cond="clr-namespace:NINA.Plugin.SkyFlatCampaignManager.Sequencer.Conditions"
     xmlns:camp="clr-namespace:SkyFlatCampaignManager.Core.Campaigns;assembly=SkyFlatCampaignManager.Core"
@@ -16,90 +14,62 @@
     </ObjectDataProvider>
 
     <DataTemplate DataType="{x:Type instr:RunSkyFlatCampaignInstruction}">
-        <nina:SequenceBlockView DataContext="{Binding}">
-            <nina:SequenceBlockView.SequenceItemContent>
-                <StackPanel Orientation="Vertical">
-                    <StackPanel Orientation="Horizontal" Margin="0,2">
-                        <TextBlock Text="Mode" Width="110" VerticalAlignment="Center"/>
-                        <ComboBox Width="160" SelectedItem="{Binding Mode}" ItemsSource="{Binding Source={StaticResource CampaignModeValues}}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,2">
-                        <TextBlock Text="Campaign key" Width="110" VerticalAlignment="Center"/>
-                        <TextBox Width="160" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,2">
-                        <TextBlock Text="Max minutes" Width="110" VerticalAlignment="Center"/>
-                        <TextBox Width="80" Text="{Binding MaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}"/>
-                        <CheckBox Margin="12,0,0,0" Content="Wait for sky" IsChecked="{Binding AllowWaitForSky}"/>
-                        <CheckBox Margin="12,0,0,0" Content="Use SQM" IsChecked="{Binding UseSqm}"/>
-                        <CheckBox Margin="12,0,0,0" Content="Simulate" IsChecked="{Binding SimulationMode}"/>
-                    </StackPanel>
-                    <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Opacity="0.85" Margin="0,4,0,0"/>
-                </StackPanel>
-            </nina:SequenceBlockView.SequenceItemContent>
-        </nina:SequenceBlockView>
+        <StackPanel Orientation="Vertical" Margin="4">
+            <StackPanel Orientation="Horizontal" Margin="0,2">
+                <TextBlock Text="Mode" Width="110" VerticalAlignment="Center"/>
+                <ComboBox Width="160" SelectedItem="{Binding Mode}" ItemsSource="{Binding Source={StaticResource CampaignModeValues}}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,2">
+                <TextBlock Text="Campaign key" Width="110" VerticalAlignment="Center"/>
+                <TextBox Width="160" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,2">
+                <TextBlock Text="Max minutes" Width="110" VerticalAlignment="Center"/>
+                <TextBox Width="80" Text="{Binding MaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}"/>
+                <CheckBox Margin="12,0,0,0" Content="Wait for sky" IsChecked="{Binding AllowWaitForSky}"/>
+                <CheckBox Margin="12,0,0,0" Content="Use SQM" IsChecked="{Binding UseSqm}"/>
+                <CheckBox Margin="12,0,0,0" Content="Simulate" IsChecked="{Binding SimulationMode}"/>
+            </StackPanel>
+            <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Opacity="0.85" Margin="0,4,0,0"/>
+        </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type instr:ResetSkyFlatCampaignInstruction}">
-        <nina:SequenceBlockView DataContext="{Binding}">
-            <nina:SequenceBlockView.SequenceItemContent>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Action" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBox Width="140" Text="{Binding Action, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Text="Key" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                    <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Text="Filter" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                    <TextBox Width="80" Text="{Binding FilterName, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-            </nina:SequenceBlockView.SequenceItemContent>
-        </nina:SequenceBlockView>
+        <StackPanel Orientation="Horizontal" Margin="4">
+            <TextBlock Text="Action" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox Width="140" Text="{Binding Action, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Key" VerticalAlignment="Center" Margin="12,0,4,0"/>
+            <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Filter" VerticalAlignment="Center" Margin="12,0,4,0"/>
+            <TextBox Width="80" Text="{Binding FilterName, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type instr:SkyFlatDiagnosticInstruction}">
-        <nina:SequenceBlockView DataContext="{Binding}">
-            <nina:SequenceBlockView.SequenceItemContent>
-                <StackPanel Orientation="Horizontal">
-                    <CheckBox Content="Take test image" IsChecked="{Binding TakeTestImage}"/>
-                    <TextBlock Text="Exposure (s)" Margin="12,0,4,0" VerticalAlignment="Center"/>
-                    <TextBox Width="60" Text="{Binding TestExposureSeconds, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-            </nina:SequenceBlockView.SequenceItemContent>
-        </nina:SequenceBlockView>
+        <StackPanel Orientation="Horizontal" Margin="4">
+            <CheckBox Content="Take test image" IsChecked="{Binding TakeTestImage}"/>
+            <TextBlock Text="Exposure (s)" Margin="12,0,4,0" VerticalAlignment="Center"/>
+            <TextBox Width="60" Text="{Binding TestExposureSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type cond:SkyFlatCampaignRequiredCondition}">
-        <nina:SequenceBlockView DataContext="{Binding}">
-            <nina:SequenceBlockView.SequenceItemContent>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Key" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
-                    <CheckBox Margin="8,0,0,0" Content="Incomplete" IsChecked="{Binding MatchIncomplete}"/>
-                    <CheckBox Margin="8,0,0,0" Content="Expired" IsChecked="{Binding MatchExpired}"/>
-                    <CheckBox Margin="8,0,0,0" Content="Invalidated" IsChecked="{Binding MatchInvalidated}"/>
-                    <CheckBox Margin="8,0,0,0" Content="Missing" IsChecked="{Binding MatchMissing}"/>
-                    <CheckBox Margin="8,0,0,0" Content="Completed" IsChecked="{Binding MatchCompleted}"/>
-                </StackPanel>
-            </nina:SequenceBlockView.SequenceItemContent>
-        </nina:SequenceBlockView>
+        <StackPanel Orientation="Horizontal" Margin="4">
+            <TextBlock Text="Key" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
+            <CheckBox Margin="8,0,0,0" Content="Incomplete" IsChecked="{Binding MatchIncomplete}"/>
+            <CheckBox Margin="8,0,0,0" Content="Expired" IsChecked="{Binding MatchExpired}"/>
+            <CheckBox Margin="8,0,0,0" Content="Invalidated" IsChecked="{Binding MatchInvalidated}"/>
+            <CheckBox Margin="8,0,0,0" Content="Missing" IsChecked="{Binding MatchMissing}"/>
+            <CheckBox Margin="8,0,0,0" Content="Completed" IsChecked="{Binding MatchCompleted}"/>
+        </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type cond:SkyFlatWindowAvailableCondition}">
-        <nina:SequenceBlockView DataContext="{Binding}">
-            <nina:SequenceBlockView.SequenceItemContent>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Mode" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox Width="140" SelectedItem="{Binding Mode}" ItemsSource="{Binding Source={StaticResource CampaignModeValues}}"/>
-                </StackPanel>
-            </nina:SequenceBlockView.SequenceItemContent>
-        </nina:SequenceBlockView>
-    </DataTemplate>
-
-    <DataTemplate x:Key="NINA.Plugin.SkyFlatCampaignManager.Sequencer.Instructions.RunSkyFlatCampaignInstruction_Mini">
-        <mini:MiniSequenceItem>
-            <mini:MiniSequenceItem.SequenceItemContent>
-                <TextBlock Text="{Binding ProgressText}"/>
-            </mini:MiniSequenceItem.SequenceItemContent>
-        </mini:MiniSequenceItem>
+        <StackPanel Orientation="Horizontal" Margin="4">
+            <TextBlock Text="Mode" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox Width="140" SelectedItem="{Binding Mode}" ItemsSource="{Binding Source={StaticResource CampaignModeValues}}"/>
+        </StackPanel>
     </DataTemplate>
 
 </ResourceDictionary>
