@@ -131,7 +131,7 @@ public class CampaignServiceTests
         await svc.GetOrCreateAsync("default", "p1", Filters(), new CampaignOptions());
         await svc.AcceptFlatAsync("default", "L", 1, 25000);
 
-        var path = "/state/default.campaign.json";
+        var path = Path.Combine("/state", "default.campaign.json");
         fs.WriteAllText(path + ".bak", fs.ReadAllText(path));
         fs.WriteAllText(path, "{ not-json");
 
