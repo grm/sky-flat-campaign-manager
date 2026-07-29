@@ -59,7 +59,7 @@ jobs:
           ./scripts/verify-package.ps1 -ZipPath $zip.FullName
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.ver.outputs.version }}
           name: Sky Flat Campaign Manager v${{ steps.ver.outputs.version }}
