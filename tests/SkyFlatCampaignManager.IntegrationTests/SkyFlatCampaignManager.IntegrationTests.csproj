@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>SkyFlatCampaignManager.IntegrationTests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="NINA.Plugin" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SkyFlatCampaignManager.Core\SkyFlatCampaignManager.Core.csproj" />
+    <ProjectReference Include="..\..\src\SkyFlatCampaignManager\SkyFlatCampaignManager.csproj" />
+  </ItemGroup>
+</Project>

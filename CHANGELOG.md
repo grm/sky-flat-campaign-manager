@@ -1,0 +1,14 @@
+# Changelog
+
+## 1.0.0.0 — 2026-07-29
+
+### Added
+- Initial Sky Flat Campaign Manager plugin for NINA 3.2
+- Advanced Sequencer instruction `Run Sky Flat Campaign`
+- Conditions `Sky Flat Campaign Required` and `Sky Flat Window Available`
+- Instructions `Reset or Invalidate Sky Flat Campaign` and `Sky Flat Diagnostic`
+- JSON atomic campaign persistence with schema versioning
+- Camera-only ADU exposure search; optional weather SkyQuality (SQM) hybrid mode
+- Filter selection strategies (manual, recommended, adaptive, exposure-based, priority)
+- Simulation / dry-run support and unit tests
+- GitHub Actions CI + Release packaging

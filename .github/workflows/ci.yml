@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore SkyFlatCampaignManager.sln
+
+      - name: Build Release
+        run: dotnet build SkyFlatCampaignManager.sln -c Release --no-restore
+
+      - name: Unit tests
+        run: dotnet test tests/SkyFlatCampaignManager.UnitTests/SkyFlatCampaignManager.UnitTests.csproj -c Release --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+
+      - name: Integration tests
+        run: dotnet test tests/SkyFlatCampaignManager.IntegrationTests/SkyFlatCampaignManager.IntegrationTests.csproj -c Release --no-build --logger "trx;LogFileName=integration.trx" --results-directory TestResults
+
+      - name: Package plugin
+        shell: pwsh
+        run: ./scripts/package-plugin.ps1 -Configuration Release -Version "${{ github.sha }}"
+
+      - name: Verify package content
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem artifacts/package/SkyFlatCampaignManager-*.zip | Select-Object -First 1
+          if (-not $zip) { throw "Package zip missing" }
+          ./scripts/verify-package.ps1 -ZipPath $zip.FullName
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/**
+          retention-days: 30
+
+      - name: Upload plugin package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkyFlatCampaignManager-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            artifacts/package/*.zip
+            artifacts/package/*.sha256
+          retention-days: 30

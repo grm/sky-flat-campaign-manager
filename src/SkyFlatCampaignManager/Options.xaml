@@ -1,0 +1,44 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:NINA.Plugin.SkyFlatCampaignManager"
+    x:Class="NINA.Plugin.SkyFlatCampaignManager.Options">
+
+    <DataTemplate x:Key="Sky Flat Campaign Manager_Options">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="8" Orientation="Vertical">
+                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding DisplayName}" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding PluginVersion, StringFormat=Version {0}}" Margin="0,0,0,12" Opacity="0.7"/>
+
+                <CheckBox Content="Plugin enabled" IsChecked="{Binding PluginEnabled}" Margin="0,4"/>
+                <CheckBox Content="Detailed logging" IsChecked="{Binding DetailedLogging}" Margin="0,4"/>
+                <CheckBox Content="Dry-run (no dangerous hardware commands / no file saves)" IsChecked="{Binding DryRun}" Margin="0,4"/>
+                <CheckBox Content="Auto-start new campaign when expired" IsChecked="{Binding AutoStartExpiredCampaign}" Margin="0,4"/>
+
+                <TextBlock Text="Campaign name" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding CampaignName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Validity (days)" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding ValidityDays, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="State directory (empty = %LOCALAPPDATA%\NINA\SFCM)" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding StateDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Default target flats / filter" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding DefaultTargetCount, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Default target ADU" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding DefaultTargetAdu, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Default ADU tolerance" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding DefaultAduTolerance, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Sun safety separation (degrees)" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding SunSafetySeparationDegrees, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Opacity="0.8"
+                           Text="Filter-specific targets, windows, and strategies are configured on the Advanced Sequencer instructions. SQM is optional via weather SkyQuality."/>
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+</ResourceDictionary>

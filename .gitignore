@@ -1,0 +1,48 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.nupkg
+*.snupk
+project.lock.json
+project.fragment.lock.json
+artifacts/
+TestResults/
+coverage/
+*.DotSettings.user
+
+## IDE
+.vs/
+.idea/
+*.swp
+*~
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Local / secrets
+.env
+*.local.json
+campaign-state/
+_ref/
+
+## Packaging output
+dist/
+packages/
+*.zip
+!docs/**/*.zip

@@ -1,0 +1,27 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using SkyFlatCampaignManager.Core;
+
+[assembly: Guid("60fa0ecc-a71d-49a9-9890-274d3d5ff1d8")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyTitle("Sky Flat Campaign Manager")]
+[assembly: AssemblyDescription("Automates multi-day evening and morning sky flat campaigns without a flat panel. SQM optional.")]
+[assembly: AssemblyCompany("Sky Flat Campaign Manager Contributors")]
+[assembly: AssemblyProduct("Sky Flat Campaign Manager")]
+[assembly: AssemblyCopyright("Copyright © 2026 Sky Flat Campaign Manager Contributors")]
+[assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.9001")]
+[assembly: AssemblyMetadata("License", "MPL-2.0")]
+[assembly: AssemblyMetadata("LicenseURL", "https://www.mozilla.org/en-US/MPL/2.0/")]
+[assembly: AssemblyMetadata("Repository", "https://github.com/skyflatcampaignmanager/sky-flat-campaign-manager")]
+[assembly: AssemblyMetadata("Homepage", "https://github.com/skyflatcampaignmanager/sky-flat-campaign-manager")]
+[assembly: AssemblyMetadata("Tags", "flats,sky flats,sequencer,automation,sqm")]
+[assembly: AssemblyMetadata("ChangelogURL", "https://github.com/skyflatcampaignmanager/sky-flat-campaign-manager/blob/main/CHANGELOG.md")]
+[assembly: AssemblyMetadata("FeaturedImageURL", "")]
+[assembly: AssemblyMetadata("ScreenshotURL", "")]
+[assembly: AssemblyMetadata("AltScreenshotURL", "")]
+[assembly: AssemblyMetadata("LongDescription", @"Sky Flat Campaign Manager automates multi-evening and multi-morning sky flat acquisition using the main camera. Campaign progress is persisted after each accepted flat. SQM/weather sky quality is optional; camera ADU remains authoritative.")]
+[assembly: ComVisible(false)]
+[assembly: AssemblyConfiguration("")]
+[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCulture("")]
