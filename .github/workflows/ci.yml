@@ -46,14 +46,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: TestResults/**
           retention-days: 30
 
       - name: Upload plugin package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SkyFlatCampaignManager-${{ github.run_number }}-${{ github.sha }}
           path: |
