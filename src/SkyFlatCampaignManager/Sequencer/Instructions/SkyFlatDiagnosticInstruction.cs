@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using System.IO;
 using System.Text;
 using Newtonsoft.Json;
 using NINA.Core.Model;

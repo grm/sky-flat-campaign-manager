@@ -1,3 +1,4 @@
+using System.IO;
 using NINA.Core.Utility;
 using NINA.Equipment.Interfaces.Mediator;
 using NINA.Plugin.SkyFlatCampaignManager.Adapters;
