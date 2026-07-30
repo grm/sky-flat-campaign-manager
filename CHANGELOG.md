@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0.0 — 2026-07-29
+## 0.0.1 — 2026-07-31
 
 ### Added
 - Initial Sky Flat Campaign Manager plugin for NINA 3.2
