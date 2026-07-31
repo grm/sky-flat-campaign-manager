@@ -4,25 +4,62 @@
     xmlns:local="clr-namespace:NINA.Plugin.SkyFlatCampaignManager"
     x:Class="NINA.Plugin.SkyFlatCampaignManager.Options">
 
+    <!--
+      NINA restyles CheckBox as a toggle switch and does not render CheckBox.Content.
+      Put labels in a TextBlock beside the CheckBox (standard NINA plugin Options pattern).
+    -->
     <DataTemplate x:Key="Sky Flat Campaign Manager_Options">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="8" Orientation="Vertical">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding DisplayName}" Margin="0,0,0,8"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="8" Orientation="Vertical" MaxWidth="720">
+                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding DisplayName}" Margin="0,0,0,4"/>
                 <TextBlock Text="{Binding PluginVersion, StringFormat=Version {0}}" Margin="0,0,0,12" Opacity="0.7"/>
 
-                <CheckBox Content="Plugin enabled" IsChecked="{Binding PluginEnabled}" Margin="0,4"/>
-                <CheckBox Content="Detailed logging" IsChecked="{Binding DetailedLogging}" Margin="0,4"/>
-                <CheckBox Content="Dry-run (no dangerous hardware commands / no file saves)" IsChecked="{Binding DryRun}" Margin="0,4"/>
-                <CheckBox Content="Auto-start new campaign when expired" IsChecked="{Binding AutoStartExpiredCampaign}" Margin="0,4"/>
+                <Grid Margin="0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Plugin enabled" VerticalAlignment="Center"/>
+                    <CheckBox Grid.Column="1" IsChecked="{Binding PluginEnabled}" VerticalAlignment="Center"/>
+                </Grid>
 
-                <TextBlock Text="Campaign name" Margin="0,12,0,2"/>
+                <Grid Margin="0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Detailed logging" VerticalAlignment="Center"/>
+                    <CheckBox Grid.Column="1" IsChecked="{Binding DetailedLogging}" VerticalAlignment="Center"/>
+                </Grid>
+
+                <Grid Margin="0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Dry-run (no dangerous hardware commands / no file saves)" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <CheckBox Grid.Column="1" IsChecked="{Binding DryRun}" VerticalAlignment="Center"/>
+                </Grid>
+
+                <Grid Margin="0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Auto-start new campaign when expired" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <CheckBox Grid.Column="1" IsChecked="{Binding AutoStartExpiredCampaign}" VerticalAlignment="Center"/>
+                </Grid>
+
+                <TextBlock Text="Campaign name" Margin="0,16,0,2"/>
                 <TextBox Text="{Binding CampaignName, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <TextBlock Text="Validity (days)" Margin="0,12,0,2"/>
                 <TextBox Text="{Binding ValidityDays, UpdateSourceTrigger=PropertyChanged}"/>
 
-                <TextBlock Text="State directory (empty = %LOCALAPPDATA%\NINA\SFCM)" Margin="0,12,0,2"/>
+                <TextBlock Text="State directory" Margin="0,12,0,2"/>
                 <TextBox Text="{Binding StateDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="0,4,0,0" Opacity="0.7" TextWrapping="Wrap"
+                           Text="{Binding EffectiveStateDirectory, StringFormat=Effective path: {0}}"/>
 
                 <TextBlock Text="Default target flats / filter" Margin="0,12,0,2"/>
                 <TextBox Text="{Binding DefaultTargetCount, UpdateSourceTrigger=PropertyChanged}"/>

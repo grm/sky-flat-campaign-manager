@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 using SkyFlatCampaignManager.Core;
 
 [assembly: Guid("60fa0ecc-a71d-49a9-9890-274d3d5ff1d8")]
-[assembly: AssemblyVersion("0.0.1.0")]
-[assembly: AssemblyFileVersion("0.0.1.0")]
+[assembly: AssemblyVersion("0.0.2.0")]
+[assembly: AssemblyFileVersion("0.0.2.0")]
 [assembly: AssemblyTitle("Sky Flat Campaign Manager")]
 [assembly: AssemblyDescription("Automates multi-day evening and morning sky flat campaigns without a flat panel. SQM optional.")]
 [assembly: AssemblyCompany("Sky Flat Campaign Manager Contributors")]

@@ -6,6 +6,7 @@ using NINA.Plugin;
 using NINA.Plugin.Interfaces;
 using NINA.Profile.Interfaces;
 using NINA.Plugin.SkyFlatCampaignManager.Properties;
+using NINA.Plugin.SkyFlatCampaignManager.Services;
 using SkyFlatCampaignManager.Core;
 
 namespace NINA.Plugin.SkyFlatCampaignManager;
@@ -60,9 +61,18 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
 
     public string StateDirectory
     {
-        get => Settings.Default.StateDirectory;
-        set { Settings.Default.StateDirectory = value; CoreUtil.SaveSettings(Settings.Default); RaisePropertyChanged(); }
+        get => Settings.Default.StateDirectory ?? string.Empty;
+        set
+        {
+            Settings.Default.StateDirectory = value ?? string.Empty;
+            CoreUtil.SaveSettings(Settings.Default);
+            RaisePropertyChanged();
+            RaisePropertyChanged(nameof(EffectiveStateDirectory));
+        }
     }
+
+    /// <summary>Resolved campaign state folder (default when StateDirectory is blank).</summary>
+    public string EffectiveStateDirectory => PluginServiceFactory.ResolveStateDirectory();
 
     public bool DetailedLogging
     {

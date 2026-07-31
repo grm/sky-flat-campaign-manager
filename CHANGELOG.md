@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.2 — 2026-07-31
+
+### Fixed
+- Options page: CheckBox labels were invisible under NINA's toggle-switch style; labels are now explicit TextBlocks
+- Options page: show the effective campaign state directory when the field is left blank
+
 ## 0.0.1 — 2026-07-31
 
 ### Added
