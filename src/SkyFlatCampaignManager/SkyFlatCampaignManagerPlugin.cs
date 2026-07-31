@@ -1,12 +1,15 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.Composition;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using NINA.Core.Utility;
 using NINA.Plugin;
 using NINA.Plugin.Interfaces;
 using NINA.Profile.Interfaces;
 using NINA.Plugin.SkyFlatCampaignManager.Properties;
 using NINA.Plugin.SkyFlatCampaignManager.Services;
+using NINA.Plugin.SkyFlatCampaignManager.ViewModels;
 using SkyFlatCampaignManager.Core;
 
 namespace NINA.Plugin.SkyFlatCampaignManager;
@@ -18,6 +21,8 @@ namespace NINA.Plugin.SkyFlatCampaignManager;
 public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
 {
     private readonly IProfileService _profileService;
+    private bool _suppressFilterSave;
+    private string _filterConfigStatus = string.Empty;
 
     [ImportingConstructor]
     public SkyFlatCampaignManagerPlugin(IProfileService profileService)
@@ -30,10 +35,32 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
             CoreUtil.SaveSettings(Settings.Default);
         }
 
-        _profileService.ProfileChanged += (_, _) => RaisePropertyChanged(nameof(ProfileId));
+        ReloadFilterConfigCommand = new RelayCommand(ReloadFilterConfig);
+        SaveFilterConfigCommand = new RelayCommand(SaveFilterConfig);
+        ApplyDefaultsToFiltersCommand = new RelayCommand(ApplyDefaultsToFilters);
+
+        _profileService.ProfileChanged += (_, _) =>
+        {
+            RaisePropertyChanged(nameof(ProfileId));
+            ReloadFilterConfig();
+        };
+
+        ReloadFilterConfig();
     }
 
     public string ProfileId => _profileService.ActiveProfile?.Id.ToString() ?? string.Empty;
+
+    public ObservableCollection<FilterConfigRow> FilterConfigs { get; } = new();
+
+    public ICommand ReloadFilterConfigCommand { get; }
+    public ICommand SaveFilterConfigCommand { get; }
+    public ICommand ApplyDefaultsToFiltersCommand { get; }
+
+    public string FilterConfigStatus
+    {
+        get => _filterConfigStatus;
+        private set { _filterConfigStatus = value; RaisePropertyChanged(); }
+    }
 
     public bool PluginEnabled
     {
@@ -68,6 +95,7 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
             CoreUtil.SaveSettings(Settings.Default);
             RaisePropertyChanged();
             RaisePropertyChanged(nameof(EffectiveStateDirectory));
+            ReloadFilterConfig();
         }
     }
 
@@ -116,6 +144,68 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void RaisePropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void ReloadFilterConfig()
+    {
+        _suppressFilterSave = true;
+        try
+        {
+            FilterConfigs.Clear();
+            foreach (var settings in PluginServiceFactory.CreateFilterSettings(_profileService))
+            {
+                var row = FilterConfigRow.FromSettings(settings);
+                row.Changed += (_, _) => OnFilterRowChanged();
+                FilterConfigs.Add(row);
+            }
+
+            FilterConfigStatus = FilterConfigs.Count == 0
+                ? "No filters in the active NINA profile filter wheel."
+                : $"Loaded {FilterConfigs.Count} filter(s) from profile + saved config.";
+        }
+        finally
+        {
+            _suppressFilterSave = false;
+        }
+    }
+
+    private void OnFilterRowChanged()
+    {
+        if (_suppressFilterSave)
+        {
+            return;
+        }
+
+        SaveFilterConfig();
+    }
+
+    private void SaveFilterConfig()
+    {
+        var list = FilterConfigs.Select(r => r.ToSettings()).ToList();
+        PluginServiceFactory.SaveFilterSettings(_profileService, list);
+        FilterConfigStatus = $"Saved {list.Count} filter(s) → {EffectiveStateDirectory}";
+    }
+
+    private void ApplyDefaultsToFilters()
+    {
+        _suppressFilterSave = true;
+        try
+        {
+            foreach (var row in FilterConfigs)
+            {
+                row.TargetCount = DefaultTargetCount;
+                row.TargetAdu = DefaultTargetAdu;
+                row.AduTolerance = DefaultAduTolerance;
+                row.MinimumAcceptableCount = Math.Max(1, (int)(DefaultTargetCount * 0.6));
+            }
+        }
+        finally
+        {
+            _suppressFilterSave = false;
+        }
+
+        SaveFilterConfig();
+        FilterConfigStatus = "Applied global defaults to all filters (gain/offset unchanged).";
+    }
 
     public override Task Teardown()
     {

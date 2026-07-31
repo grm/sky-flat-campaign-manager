@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.4 — 2026-08-01
+
+### Added
+- Per-filter campaign configuration in Options (enabled, count, ADU, gain, offset, binning, exposure bounds, evening/morning order)
+- Settings persisted per NINA profile as `filter-config.<profileId>.json` under the SFCM state directory
+- New filters seeded from Flat Wizard gain/offset/binning/exposure when available
+
 ## 0.0.3 — 2026-07-31
 
 ### Fixed

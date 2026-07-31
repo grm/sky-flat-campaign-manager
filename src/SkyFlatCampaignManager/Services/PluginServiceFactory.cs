@@ -48,16 +48,40 @@ public static class PluginServiceFactory
         };
     }
 
+    public static JsonFilterCampaignConfigRepository CreateFilterConfigRepository()
+        => new(new RealFileSystem(), ResolveStateDirectory());
+
+    public static FilterCampaignDefaults CreateFilterDefaults() => new()
+    {
+        TargetCount = Settings.Default.DefaultTargetCount,
+        TargetAdu = Settings.Default.DefaultTargetAdu,
+        AduTolerance = Settings.Default.DefaultAduTolerance,
+        MinExposureSeconds = PluginIdentity.DefaultMinExposureSeconds,
+        MaxExposureSeconds = PluginIdentity.DefaultMaxExposureSeconds,
+        Gain = -1,
+        Offset = -1,
+        BinningX = 1,
+        BinningY = 1
+    };
+
     public static List<FilterCampaignSettings> CreateFilterSettings(IProfileService profileService, int? targetOverride = null)
     {
-        var list = new List<FilterCampaignSettings>();
         var filters = profileService.ActiveProfile?.FilterWheelSettings?.FilterWheelFilters;
         if (filters is null)
         {
-            return list;
+            return new List<FilterCampaignSettings>();
         }
 
-        var order = 0;
+        var profileId = profileService.ActiveProfile?.Id.ToString() ?? "default";
+        var repo = CreateFilterConfigRepository();
+        var saved = repo.Load(profileId).Filters;
+
+        var names = filters
+            .Where(f => !string.IsNullOrWhiteSpace(f.Name))
+            .Select(f => f.Name)
+            .ToList();
+
+        var seed = new Dictionary<string, FilterCampaignSettings>(StringComparer.OrdinalIgnoreCase);
         foreach (var filter in filters)
         {
             if (string.IsNullOrWhiteSpace(filter.Name))
@@ -65,23 +89,61 @@ public static class PluginServiceFactory
                 continue;
             }
 
-            order++;
-            list.Add(new FilterCampaignSettings
+            var fw = filter.FlatWizardFilterSettings;
+            if (fw is null)
+            {
+                continue;
+            }
+
+            seed[filter.Name] = new FilterCampaignSettings
             {
                 FilterName = filter.Name,
                 Enabled = true,
-                TargetCount = targetOverride ?? Settings.Default.DefaultTargetCount,
+                Gain = fw.Gain,
+                Offset = fw.Offset,
+                BinningX = Math.Max(1, fw.Binning?.X ?? 1),
+                BinningY = Math.Max(1, fw.Binning?.Y ?? 1),
+                MinExposureSeconds = fw.MinFlatExposureTime > 0 ? fw.MinFlatExposureTime : PluginIdentity.DefaultMinExposureSeconds,
+                MaxExposureSeconds = fw.MaxFlatExposureTime > 0 ? fw.MaxFlatExposureTime : PluginIdentity.DefaultMaxExposureSeconds,
                 TargetAdu = Settings.Default.DefaultTargetAdu,
                 AduTolerance = Settings.Default.DefaultAduTolerance,
-                ManualEveningOrder = order,
-                ManualMorningOrder = order,
-                Priority = order,
-                Gain = -1,
-                Offset = -1
-            });
+                TargetCount = Settings.Default.DefaultTargetCount
+            };
         }
 
-        return list;
+        var defaults = CreateFilterDefaults();
+        if (targetOverride is int t)
+        {
+            defaults = new FilterCampaignDefaults
+            {
+                TargetCount = t,
+                TargetAdu = defaults.TargetAdu,
+                AduTolerance = defaults.AduTolerance,
+                MinExposureSeconds = defaults.MinExposureSeconds,
+                MaxExposureSeconds = defaults.MaxExposureSeconds,
+                Gain = defaults.Gain,
+                Offset = defaults.Offset,
+                BinningX = defaults.BinningX,
+                BinningY = defaults.BinningY
+            };
+        }
+
+        var merged = JsonFilterCampaignConfigRepository.MergeWithWheel(names, saved, defaults, seed);
+        if (targetOverride is int overrideCount)
+        {
+            foreach (var f in merged)
+            {
+                f.TargetCount = overrideCount;
+            }
+        }
+
+        return merged;
+    }
+
+    public static void SaveFilterSettings(IProfileService profileService, IEnumerable<FilterCampaignSettings> filters)
+    {
+        var profileId = profileService.ActiveProfile?.Id.ToString() ?? "default";
+        CreateFilterConfigRepository().Save(profileId, filters);
     }
 
     public static SkyFlatSessionRunner CreateRunner(

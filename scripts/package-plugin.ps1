@@ -1,7 +1,7 @@
 param(
   [string]$Configuration = "Release",
   [string]$OutputDir = "artifacts/package",
-  [string]$Version = "0.0.3"
+  [string]$Version = "0.0.4"
 )
 
 $ErrorActionPreference = "Stop"
