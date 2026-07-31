@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using SkyFlatCampaignManager.Core.Campaigns;
 
 namespace NINA.Plugin.SkyFlatCampaignManager.ViewModels;
@@ -160,4 +161,20 @@ public sealed class FilterConfigRow : INotifyPropertyChanged
         ManualMorningOrder = MorningOrder,
         Priority = Priority
     };
+}
+
+/// <summary>Minimal ICommand helper (avoids obsolete NINA.Core.Utility.RelayCommand).</summary>
+public sealed class PluginRelayCommand : ICommand
+{
+    private readonly Action _execute;
+
+    public PluginRelayCommand(Action execute) => _execute = execute;
+
+    public bool CanExecute(object? parameter) => true;
+    public void Execute(object? parameter) => _execute();
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
 }
