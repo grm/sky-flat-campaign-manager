@@ -35,9 +35,9 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
             CoreUtil.SaveSettings(Settings.Default);
         }
 
-        ReloadFilterConfigCommand = new RelayCommand(ReloadFilterConfig);
-        SaveFilterConfigCommand = new RelayCommand(SaveFilterConfig);
-        ApplyDefaultsToFiltersCommand = new RelayCommand(ApplyDefaultsToFilters);
+        ReloadFilterConfigCommand = new RelayCommand(_ => ReloadFilterConfig());
+        SaveFilterConfigCommand = new RelayCommand(_ => SaveFilterConfig());
+        ApplyDefaultsToFiltersCommand = new RelayCommand(_ => ApplyDefaultsToFilters());
 
         _profileService.ProfileChanged += (_, _) =>
         {
