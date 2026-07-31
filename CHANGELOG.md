@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.3 — 2026-07-31
+
+### Fixed
+- Sequencer UI: CheckBox labels were invisible under NINA's toggle-switch style on Run / Diagnostic / Campaign Required
+
 ## 0.0.2 — 2026-07-31
 
 ### Fixed

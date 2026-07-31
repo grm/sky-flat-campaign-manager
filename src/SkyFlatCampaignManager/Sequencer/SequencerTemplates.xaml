@@ -7,6 +7,11 @@
     xmlns:camp="clr-namespace:SkyFlatCampaignManager.Core.Campaigns;assembly=SkyFlatCampaignManager.Core"
     x:Class="NINA.Plugin.SkyFlatCampaignManager.Sequencer.SequencerTemplates">
 
+    <!--
+      NINA restyles CheckBox as a toggle switch and does not render CheckBox.Content.
+      Put each label in a TextBlock beside the CheckBox.
+    -->
+
     <ObjectDataProvider x:Key="CampaignModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
         <ObjectDataProvider.MethodParameters>
             <x:Type TypeName="camp:CampaignMode"/>
@@ -26,10 +31,21 @@
             <StackPanel Orientation="Horizontal" Margin="0,2">
                 <TextBlock Text="Max minutes" Width="110" VerticalAlignment="Center"/>
                 <TextBox Width="80" Text="{Binding MaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}"/>
-                <CheckBox Margin="12,0,0,0" Content="Wait for sky" IsChecked="{Binding AllowWaitForSky}"/>
-                <CheckBox Margin="12,0,0,0" Content="Use SQM" IsChecked="{Binding UseSqm}"/>
-                <CheckBox Margin="12,0,0,0" Content="Simulate" IsChecked="{Binding SimulationMode}"/>
             </StackPanel>
+            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                    <TextBlock Text="Wait for sky" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <CheckBox IsChecked="{Binding AllowWaitForSky}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                    <TextBlock Text="Use SQM" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <CheckBox IsChecked="{Binding UseSqm}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                    <TextBlock Text="Simulate" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <CheckBox IsChecked="{Binding SimulationMode}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </WrapPanel>
             <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Opacity="0.85" Margin="0,4,0,0"/>
         </StackPanel>
     </DataTemplate>
@@ -47,21 +63,41 @@
 
     <DataTemplate DataType="{x:Type instr:SkyFlatDiagnosticInstruction}">
         <StackPanel Orientation="Horizontal" Margin="4">
-            <CheckBox Content="Take test image" IsChecked="{Binding TakeTestImage}"/>
-            <TextBlock Text="Exposure (s)" Margin="12,0,4,0" VerticalAlignment="Center"/>
+            <TextBlock Text="Take test image" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <CheckBox IsChecked="{Binding TakeTestImage}" VerticalAlignment="Center"/>
+            <TextBlock Text="Exposure (s)" Margin="16,0,4,0" VerticalAlignment="Center"/>
             <TextBox Width="60" Text="{Binding TestExposureSeconds, UpdateSourceTrigger=PropertyChanged}"/>
         </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type cond:SkyFlatCampaignRequiredCondition}">
-        <StackPanel Orientation="Horizontal" Margin="4">
-            <TextBlock Text="Key" VerticalAlignment="Center" Margin="0,0,4,0"/>
-            <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
-            <CheckBox Margin="8,0,0,0" Content="Incomplete" IsChecked="{Binding MatchIncomplete}"/>
-            <CheckBox Margin="8,0,0,0" Content="Expired" IsChecked="{Binding MatchExpired}"/>
-            <CheckBox Margin="8,0,0,0" Content="Invalidated" IsChecked="{Binding MatchInvalidated}"/>
-            <CheckBox Margin="8,0,0,0" Content="Missing" IsChecked="{Binding MatchMissing}"/>
-            <CheckBox Margin="8,0,0,0" Content="Completed" IsChecked="{Binding MatchCompleted}"/>
+        <StackPanel Orientation="Vertical" Margin="4">
+            <StackPanel Orientation="Horizontal" Margin="0,2">
+                <TextBlock Text="Key" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
+                    <TextBlock Text="Incomplete" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <CheckBox IsChecked="{Binding MatchIncomplete}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
+                    <TextBlock Text="Expired" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <CheckBox IsChecked="{Binding MatchExpired}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
+                    <TextBlock Text="Invalidated" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <CheckBox IsChecked="{Binding MatchInvalidated}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
+                    <TextBlock Text="Missing" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <CheckBox IsChecked="{Binding MatchMissing}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
+                    <TextBlock Text="Completed" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <CheckBox IsChecked="{Binding MatchCompleted}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </WrapPanel>
         </StackPanel>
     </DataTemplate>
 

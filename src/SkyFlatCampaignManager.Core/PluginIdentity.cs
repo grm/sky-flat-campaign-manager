@@ -12,7 +12,7 @@ public static class PluginIdentity
     public const string NamespaceRoot = "NINA.Plugin.SkyFlatCampaignManager";
     public const string OptionsDataTemplateKey = "Sky Flat Campaign Manager_Options";
     public const string PluginGuid = "60fa0ecc-a71d-49a9-9890-274d3d5ff1d8";
-    public const string Version = "0.0.2";
+    public const string Version = "0.0.3";
     public const int CurrentSchemaVersion = 1;
     public const int DefaultCampaignValidityDays = 60;
     public const double DefaultTargetAdu = 25000d;

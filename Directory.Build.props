@@ -11,9 +11,9 @@
     <Authors>Sky Flat Campaign Manager Contributors</Authors>
     <Product>Sky Flat Campaign Manager</Product>
     <Copyright>Copyright © 2026 Sky Flat Campaign Manager Contributors</Copyright>
-    <Version>0.0.2</Version>
-    <FileVersion>0.0.2.0</FileVersion>
-    <AssemblyVersion>0.0.2.0</AssemblyVersion>
+    <Version>0.0.3</Version>
+    <FileVersion>0.0.3.0</FileVersion>
+    <AssemblyVersion>0.0.3.0</AssemblyVersion>
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 </Project>
