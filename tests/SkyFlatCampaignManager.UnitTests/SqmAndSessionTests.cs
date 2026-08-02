@@ -114,8 +114,8 @@ public class SqmAndSessionTests
 
         var filters = new List<FilterCampaignSettings>
         {
-            new() { FilterName = "L", TargetCount = 3, Enabled = true, TargetAdu = 25000, AduTolerance = 20000, MinExposureSeconds = 0.01, MaxExposureSeconds = 30 },
-            new() { FilterName = "Ha", TargetCount = 2, Enabled = true, TargetAdu = 25000, AduTolerance = 20000, MinExposureSeconds = 0.01, MaxExposureSeconds = 30 }
+            new() { FilterName = "L", TargetCount = 3, Enabled = true, TargetHistogramFraction = 25000d / 65535d, TargetToleranceFraction = 0.8, MinExposureSeconds = 0.01, MaxExposureSeconds = 30 },
+            new() { FilterName = "Ha", TargetCount = 2, Enabled = true, TargetHistogramFraction = 25000d / 65535d, TargetToleranceFraction = 0.8, MinExposureSeconds = 0.01, MaxExposureSeconds = 30 }
         };
 
         var result = await runner.RunAsync(new SkyFlatSessionRequest

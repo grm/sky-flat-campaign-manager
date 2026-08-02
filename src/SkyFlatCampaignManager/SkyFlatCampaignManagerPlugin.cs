@@ -120,16 +120,18 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
         set { Settings.Default.DefaultTargetCount = value; CoreUtil.SaveSettings(Settings.Default); RaisePropertyChanged(); }
     }
 
-    public double DefaultTargetAdu
+    /// <summary>Default target histogram level, 0-100% of full scale ("Target histogram level" in the UI).</summary>
+    public double DefaultTargetHistogramPercent
     {
-        get => Settings.Default.DefaultTargetAdu;
-        set { Settings.Default.DefaultTargetAdu = value; CoreUtil.SaveSettings(Settings.Default); RaisePropertyChanged(); }
+        get => Settings.Default.DefaultTargetHistogramPercent;
+        set { Settings.Default.DefaultTargetHistogramPercent = value; CoreUtil.SaveSettings(Settings.Default); RaisePropertyChanged(); }
     }
 
-    public double DefaultAduTolerance
+    /// <summary>Default acceptance tolerance as a percentage OF THE TARGET (NINA-style), not of full scale.</summary>
+    public double DefaultTargetTolerancePercent
     {
-        get => Settings.Default.DefaultAduTolerance;
-        set { Settings.Default.DefaultAduTolerance = value; CoreUtil.SaveSettings(Settings.Default); RaisePropertyChanged(); }
+        get => Settings.Default.DefaultTargetTolerancePercent;
+        set { Settings.Default.DefaultTargetTolerancePercent = value; CoreUtil.SaveSettings(Settings.Default); RaisePropertyChanged(); }
     }
 
     public double SunSafetySeparationDegrees
@@ -193,8 +195,8 @@ public class SkyFlatCampaignManagerPlugin : PluginBase, INotifyPropertyChanged
             foreach (var row in FilterConfigs)
             {
                 row.TargetCount = DefaultTargetCount;
-                row.TargetAdu = DefaultTargetAdu;
-                row.AduTolerance = DefaultAduTolerance;
+                row.TargetHistogramPercent = DefaultTargetHistogramPercent;
+                row.TargetTolerancePercent = DefaultTargetTolerancePercent;
                 row.MinimumAcceptableCount = Math.Max(1, (int)(DefaultTargetCount * 0.6));
             }
         }

@@ -5,14 +5,25 @@ namespace SkyFlatCampaignManager.Core.Acquisition;
 /// </summary>
 public static class RobustImageStatisticsCalculator
 {
+    /// <param name="maxAdu">
+    /// Effective full-scale ADU for this image (e.g. 4095 for 12-bit, 16383 for 14-bit, 65535
+    /// for 16-bit). Stamped onto the result so downstream normalized-fraction validation does
+    /// not have to assume 16-bit. Defaults to 65535 for backward compatibility.
+    /// </param>
+    /// <param name="saturationLevel">
+    /// ADU at/above which a pixel is considered saturated. Defaults to <paramref name="maxAdu"/>
+    /// when not specified — a sensor can saturate below its nominal digitization ceiling.
+    /// </param>
     public static ImageStatisticsResult Compute(
         ReadOnlySpan<ushort> pixels,
         int width,
         int height,
         double roiFraction,
-        ushort saturationLevel = 65535,
+        ushort maxAdu = 65535,
+        ushort? saturationLevel = null,
         ushort tooDarkLevel = 100)
     {
+        var effectiveSaturationLevel = saturationLevel ?? maxAdu;
         if (width <= 0 || height <= 0 || pixels.Length < width * height)
         {
             return new ImageStatisticsResult
@@ -43,7 +54,7 @@ public static class RobustImageStatisticsCalculator
                 sample.Add(v);
                 sum += v;
                 sumSq += (double)v * v;
-                if (v >= saturationLevel) saturated++;
+                if (v >= effectiveSaturationLevel) saturated++;
                 if (v <= tooDarkLevel) tooDark++;
             }
         }
@@ -77,7 +88,8 @@ public static class RobustImageStatisticsCalculator
             StdDevAdu = std,
             SaturatedFraction = saturated / (double)n,
             TooDarkFraction = tooDark / (double)n,
-            SamplePixelCount = n
+            SamplePixelCount = n,
+            MaxAdu = maxAdu
         };
     }
 }

@@ -74,6 +74,11 @@ Test packages:
 - `CaptureSequence` + `CaptureSequence.ImageTypes.FLAT`
 - `IExposureData.ToImageData(...)` then `IImageData.Statistics` → `IImageStatistics.Median` / `Mean` / `StDev` / `Max` / `Min`
 - ROI / robust percentiles: computed in our Core from raw pixel buffers when available; otherwise use NINA statistics as primary median
+- `ICameraSettings.BitDepth` (`NINA.Profile.Interfaces`, `double BitDepth { get; set; }`, accessed via `profileService.ActiveProfile.CameraSettings.BitDepth`) — **verified**. Per the NINA manual's Equipment → Camera tab documentation, this is a user-configured equipment setting, not always the camera's native sensor depth:
+  - ZWO, QHY, SBIG, FLI, PlayerOne, Atik: driver rescales to this configured depth — commonly set to **16-bit**.
+  - Touptek, Risingcam, Altair, Mallincam, Omegon, SVBony: driver does **not** rescale — must be set to the sensor's native depth (e.g. 12-bit/4095, 14-bit/16383).
+  - DSLR raw decode (LibRaw): stretched to 16-bit.
+  - **Decision:** the plugin must never hardcode `maxAdu = 65535`. `NinaCameraAcquisitionService.ResolveMaxAdu()` computes `2^BitDepth - 1` from this profile setting for every real capture and stamps it onto `ImageStatisticsResult.MaxAdu`; `65535` is used only as a last-resort fallback when `BitDepth` is unset/zero, and as the fixed full-scale of the in-repo `SkySimulator` (a simulated 16-bit sensor, not a live-camera assumption). This is unit-tested in `HistogramMigrationTests` (`Robust_statistics_stamp_the_requested_bit_depth`) and documented in `FilterValidationRequest`/`ImageStatisticsResult` XML docs.
 
 ### Astronomy
 

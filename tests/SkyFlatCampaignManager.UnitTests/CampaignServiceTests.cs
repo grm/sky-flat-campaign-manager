@@ -157,4 +157,110 @@ public class CampaignServiceTests
         var reset = await svc.ResetFilterAsync("default", "L");
         reset.Filters["L"].Accepted.Should().Be(0);
     }
+
+    /// <summary>
+    /// LastSunAltitudeDegrees must be persisted atomically inside AcceptFlatAsync's single save —
+    /// not set on the in-memory object afterwards — so it survives a plugin/NINA restart. This is
+    /// what ClosestToOptimalWindowStrategy depends on for learning.
+    /// </summary>
+    [Fact]
+    public async Task AcceptFlatAsync_persists_sun_altitude_atomically_and_it_survives_a_restart()
+    {
+        var fs = new MemoryFs();
+        var clock = new FakeClock();
+
+        // First "process": accept a flat with a measured sun altitude, exactly like the runner does.
+        var svc1 = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        await svc1.GetOrCreateAsync("default", "p1", Filters(), new CampaignOptions());
+        await svc1.AcceptFlatAsync(
+            "default",
+            "L",
+            exposureSeconds: 1.5,
+            measuredAdu: 25690,
+            measuredHistogramFraction: 0.392,
+            sunAltitudeDegrees: -8.25);
+
+        // Simulate a full plugin/NINA restart: brand-new repository + service instance reading
+        // only from the persisted file (no shared in-memory state).
+        var svc2 = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        var reloaded = await svc2.GetOrCreateAsync("default", "p1", Filters(), new CampaignOptions());
+
+        reloaded.Filters["L"].LastSunAltitudeDegrees.Should().Be(-8.25);
+        reloaded.Filters["L"].LastMeasuredHistogramFraction.Should().Be(0.392);
+        reloaded.Filters["L"].LastMeasuredAdu.Should().Be(25690);
+        reloaded.Filters["L"].LastExposureSeconds.Should().Be(1.5);
+    }
+
+    [Fact]
+    public async Task AcceptFlatAsync_without_sun_altitude_leaves_previous_value_untouched()
+    {
+        var (svc, _, _) = Create();
+        await svc.GetOrCreateAsync("default", "p1", Filters(), new CampaignOptions());
+        await svc.AcceptFlatAsync("default", "L", 1, 25000, sunAltitudeDegrees: -10);
+        var state = await svc.AcceptFlatAsync("default", "L", 1, 25000); // no sunAltitudeDegrees this time
+        state.Filters["L"].LastSunAltitudeDegrees.Should().Be(-10);
+    }
+
+    /// <summary>
+    /// MinimumAcceptableCount is a lower usability threshold, distinct from TargetCount. Reaching
+    /// it must report MinimumReached, never Complete — only TargetCount does that.
+    /// </summary>
+    [Fact]
+    public async Task Minimum_acceptable_count_reports_minimum_reached_not_complete()
+    {
+        var (svc, _, _) = Create();
+        var filters = new List<FilterCampaignSettings>
+        {
+            new() { FilterName = "L", TargetCount = 10, MinimumAcceptableCount = 5, Enabled = true }
+        };
+        await svc.GetOrCreateAsync("default", "p1", filters, new CampaignOptions());
+
+        CampaignState? state = null;
+        for (var i = 0; i < 5; i++)
+        {
+            state = await svc.AcceptFlatAsync("default", "L", 1, 25000);
+        }
+
+        state!.Filters["L"].Status.Should().Be(FilterCompletionStatus.MinimumReached);
+        state.Filters["L"].HasReachedMinimum.Should().BeTrue();
+        state.Filters["L"].IsComplete.Should().BeFalse();
+        state.CompletionStatus.Should().Be(FilterCompletionStatus.MinimumReached);
+        state.Status.Should().Be(CampaignStatus.InProgress); // never auto-completed by minimum alone
+    }
+
+    [Fact]
+    public async Task Reaching_target_count_reports_complete()
+    {
+        var (svc, _, _) = Create();
+        var filters = new List<FilterCampaignSettings>
+        {
+            new() { FilterName = "L", TargetCount = 3, MinimumAcceptableCount = 2, Enabled = true }
+        };
+        await svc.GetOrCreateAsync("default", "p1", filters, new CampaignOptions());
+
+        CampaignState? state = null;
+        for (var i = 0; i < 3; i++)
+        {
+            state = await svc.AcceptFlatAsync("default", "L", 1, 25000);
+        }
+
+        state!.Filters["L"].Status.Should().Be(FilterCompletionStatus.Complete);
+        state.CompletionStatus.Should().Be(FilterCompletionStatus.Complete);
+        state.Status.Should().Be(CampaignStatus.Completed);
+    }
+
+    [Fact]
+    public async Task Below_minimum_reports_incomplete()
+    {
+        var (svc, _, _) = Create();
+        var filters = new List<FilterCampaignSettings>
+        {
+            new() { FilterName = "L", TargetCount = 10, MinimumAcceptableCount = 5, Enabled = true }
+        };
+        await svc.GetOrCreateAsync("default", "p1", filters, new CampaignOptions());
+        var state = await svc.AcceptFlatAsync("default", "L", 1, 25000);
+
+        state.Filters["L"].Status.Should().Be(FilterCompletionStatus.Incomplete);
+        state.CompletionStatus.Should().Be(FilterCompletionStatus.Incomplete);
+    }
 }

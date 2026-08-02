@@ -170,7 +170,10 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
 
         var progressAdapter = new Progress<SkyFlatSessionProgress>(p =>
         {
-            ProgressText = $"{p.State}: {p.CurrentFilter} ADU={p.MeasuredAdu:F0} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
+            var levelText = p.MeasuredHistogramFraction is { } frac
+                ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU"
+                : "n/a";
+            ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
             RaisePropertyChanged(nameof(ProgressText));
             progress?.Report(new ApplicationStatus
             {

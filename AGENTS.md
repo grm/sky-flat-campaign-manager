@@ -11,6 +11,8 @@ NINA plugin for multi-day automated sky flats without a flat panel. Camera ADU i
 3. Domain logic lives in Core; plugin project is adapters + MEF + WPF only.
 4. Do not copy third-party plugin source under incompatible licenses.
 5. Keep `AGENTS.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `README.md` synchronized when architecture changes.
+6. **Never assume a fixed full-scale ADU (e.g. `65535`).** Read the effective bit depth from the camera/image (`ICameraSettings.BitDepth` / `ImageStatisticsResult.MaxAdu`); `PluginIdentity.LegacyMigrationMaxAdu` (65535) exists only for one-time migration of pre-existing settings, never for live acceptance.
+7. **Astronomical window checks must be direction-aware.** Never wait for a window that has already closed and cannot reopen this session (`AstronomicalWindowState.TooLate`) — see `IAstronomicalWindowService.Evaluate` and `ARCHITECTURE.md`.
 
 ## Commands
 

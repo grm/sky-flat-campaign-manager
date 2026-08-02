@@ -64,11 +64,11 @@
                 <TextBlock Text="Default target flats / filter" Margin="0,12,0,2"/>
                 <TextBox Text="{Binding DefaultTargetCount, UpdateSourceTrigger=PropertyChanged}"/>
 
-                <TextBlock Text="Default target ADU" Margin="0,12,0,2"/>
-                <TextBox Text="{Binding DefaultTargetAdu, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Default target histogram level (% of full scale)" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding DefaultTargetHistogramPercent, UpdateSourceTrigger=PropertyChanged}"/>
 
-                <TextBlock Text="Default ADU tolerance" Margin="0,12,0,2"/>
-                <TextBox Text="{Binding DefaultAduTolerance, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Default tolerance (% of target, NINA-style)" Margin="0,12,0,2"/>
+                <TextBox Text="{Binding DefaultTargetTolerancePercent, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <TextBlock Text="Sun safety separation (degrees)" Margin="0,12,0,2"/>
                 <TextBox Text="{Binding SunSafetySeparationDegrees, UpdateSourceTrigger=PropertyChanged}"/>
@@ -80,7 +80,7 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <Button Content="Reload from filter wheel" Command="{Binding ReloadFilterConfigCommand}" Padding="10,4" Margin="0,0,8,0"/>
                     <Button Content="Save now" Command="{Binding SaveFilterConfigCommand}" Padding="10,4" Margin="0,0,8,0"/>
-                    <Button Content="Apply global defaults to ADU/count" Command="{Binding ApplyDefaultsToFiltersCommand}" Padding="10,4"/>
+                    <Button Content="Apply global defaults to target/count" Command="{Binding ApplyDefaultsToFiltersCommand}" Padding="10,4"/>
                 </StackPanel>
 
                 <DataGrid ItemsSource="{Binding FilterConfigs}"
@@ -97,8 +97,9 @@
                         <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="40"/>
                         <DataGridTextColumn Header="Count" Binding="{Binding TargetCount, UpdateSourceTrigger=PropertyChanged}" Width="55"/>
                         <DataGridTextColumn Header="Min OK" Binding="{Binding MinimumAcceptableCount, UpdateSourceTrigger=PropertyChanged}" Width="55"/>
-                        <DataGridTextColumn Header="ADU" Binding="{Binding TargetAdu, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
-                        <DataGridTextColumn Header="±ADU" Binding="{Binding AduTolerance, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                        <DataGridTextColumn Header="Target %" Binding="{Binding TargetHistogramPercent, UpdateSourceTrigger=PropertyChanged}" Width="65"/>
+                        <DataGridTextColumn Header="Tol % of target" Binding="{Binding TargetTolerancePercent, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
+                        <DataGridTextColumn Header="≈ADU @16-bit" Binding="{Binding TargetAduPreview, Mode=OneWay}" IsReadOnly="True" Width="150"/>
                         <DataGridTextColumn Header="Gain" Binding="{Binding Gain, UpdateSourceTrigger=PropertyChanged}" Width="55"/>
                         <DataGridTextColumn Header="Offset" Binding="{Binding Offset, UpdateSourceTrigger=PropertyChanged}" Width="55"/>
                         <DataGridTextColumn Header="BinX" Binding="{Binding BinningX, UpdateSourceTrigger=PropertyChanged}" Width="45"/>

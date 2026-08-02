@@ -50,10 +50,35 @@ Plugin options page (Plugins tab):
 - Enable / dry-run / detailed logging
 - Campaign name, validity days, auto-restart when expired
 - State directory (default `%LOCALAPPDATA%\NINA\SFCM`)
-- Default target count / ADU / tolerance
+- Default target count / target histogram level (%) / tolerance (% of target)
 - Sun safety separation degrees
 
+Per-filter grid: target count, minimum acceptable count, **target histogram level (%)** and **tolerance (% of target)**, gain/offset/binning, min/max exposure, evening/morning order, priority.
+
 Filter lists come from the **active NINA profile filter wheel** — LRGBSHO is not assumed.
+
+## Brightness / histogram model
+
+The acceptance target is a **normalized histogram level** — a percentage of full scale (0–100%), not a raw ADU number:
+
+- **Target histogram level**: e.g. 40% of full scale
+- **Tolerance**: a percentage *of the target* (NINA-style), e.g. ±10% of a 40% target accepts 36–44% of full scale
+- `maxAdu` is read from the camera's configured bit depth (`ICameraSettings.BitDepth` — 12-bit/4095, 14-bit/16383, 16-bit/65535, etc.), never assumed to be 65535
+- Acceptance validates the robust **median** (not the mean); the mean is shown as an extra diagnostic only
+- Diagnostics and logs show both forms, e.g. `Measured median histogram level: 39.2% / 25690 ADU`
+
+Existing `TargetAdu`/`AduTolerance` filter configurations are migrated automatically to the normalized fields the first time they're loaded — no manual action needed, and in-progress campaign counts are never reset by this migration. See [`CHANGELOG.md`](CHANGELOG.md) for the exact migration formula.
+
+## Astronomical window behaviour
+
+The sun altitude is classified relative to the resolved Morning/Evening mode as **TooEarly**, **Open**, or **TooLate**:
+
+| Mode | TooEarly (may wait) | Open (flats run) | TooLate (stop immediately, never wait) |
+|------|----------------------|-------------------|------------------------------------------|
+| Evening | altitude > max | min ≤ altitude ≤ max | altitude < min |
+| Morning | altitude < min | min ≤ altitude ≤ max | altitude > max |
+
+`TooLate` is a normal closed-twilight outcome, not a fault — the runner stops immediately regardless of **Allow wait for sky**, because the sun keeps moving in the same direction and the window cannot reopen this session.
 
 ## Advanced Sequencer examples
 

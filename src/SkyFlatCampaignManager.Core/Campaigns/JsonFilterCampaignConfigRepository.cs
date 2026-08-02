@@ -10,7 +10,13 @@ namespace SkyFlatCampaignManager.Core.Campaigns;
 public sealed class FilterCampaignDefaults
 {
     public int TargetCount { get; init; } = 50;
+    public double TargetHistogramFraction { get; init; } = PluginIdentity.DefaultTargetHistogramFraction;
+    public double TargetToleranceFraction { get; init; } = PluginIdentity.DefaultTargetToleranceFraction;
+
+    /// <summary>Legacy raw-ADU default, retained only for callers that have not migrated to fractions.</summary>
     public double TargetAdu { get; init; } = PluginIdentity.DefaultTargetAdu;
+
+    /// <summary>Legacy raw-ADU tolerance default, retained only for callers that have not migrated to fractions.</summary>
     public double AduTolerance { get; init; } = PluginIdentity.DefaultAduTolerance;
     public double MinExposureSeconds { get; init; } = PluginIdentity.DefaultMinExposureSeconds;
     public double MaxExposureSeconds { get; init; } = PluginIdentity.DefaultMaxExposureSeconds;
@@ -21,13 +27,57 @@ public sealed class FilterCampaignDefaults
 }
 
 /// <summary>
-/// On-disk document for per-filter campaign settings (gain, ADU, counts, etc.).
+/// On-disk document for per-filter campaign settings (gain, histogram target, counts, etc.).
 /// </summary>
 public sealed class FilterCampaignConfigDocument
 {
     public int SchemaVersion { get; set; } = 1;
     public string ProfileId { get; set; } = string.Empty;
     public List<FilterCampaignSettings> Filters { get; set; } = new();
+}
+
+/// <summary>
+/// Migrates on-disk filter campaign configuration documents to the current schema.
+/// Schema 1 → 2: raw <c>TargetAdu</c>/<c>AduTolerance</c> are converted to normalized
+/// <c>TargetHistogramFraction</c>/<c>TargetToleranceFraction</c> (NINA-style, percentage of
+/// target). Existing accepted/rejected campaign progress is never touched by this migration —
+/// it only affects the acceptance target for future flats.
+/// </summary>
+public static class FilterCampaignConfigMigrator
+{
+    public const int CurrentSchemaVersion = 2;
+
+    public static FilterCampaignConfigDocument Migrate(FilterCampaignConfigDocument document)
+    {
+        if (document.SchemaVersion < 2)
+        {
+            foreach (var filter in document.Filters)
+            {
+                MigrateLegacyAduToFraction(filter);
+            }
+        }
+
+        document.SchemaVersion = CurrentSchemaVersion;
+        return document;
+    }
+
+    /// <summary>
+    /// Converts a single filter's legacy <c>TargetAdu</c>/<c>AduTolerance</c> into
+    /// <c>TargetHistogramFraction</c>/<c>TargetToleranceFraction</c> using the legacy 65535
+    /// full-scale assumption (the only assumption ever made for pre-existing settings; live
+    /// validation always uses the actual captured image's bit depth instead).
+    /// </summary>
+    public static void MigrateLegacyAduToFraction(FilterCampaignSettings filter)
+    {
+        if (filter.TargetAdu > 0)
+        {
+            filter.TargetHistogramFraction = Math.Clamp(filter.TargetAdu / PluginIdentity.LegacyMigrationMaxAdu, 0d, 1d);
+        }
+
+        filter.TargetToleranceFraction = filter.TargetAdu > 0 && filter.AduTolerance > 0
+            ? filter.AduTolerance / filter.TargetAdu
+            : PluginIdentity.DefaultTargetToleranceFraction;
+    }
 }
 
 /// <summary>
@@ -80,7 +130,7 @@ public sealed class JsonFilterCampaignConfigRepository
 
             doc.ProfileId = profileId;
             doc.Filters ??= new List<FilterCampaignSettings>();
-            return doc;
+            return FilterCampaignConfigMigrator.Migrate(doc);
         }
         catch (JsonException)
         {
@@ -97,7 +147,7 @@ public sealed class JsonFilterCampaignConfigRepository
 
         var doc = new FilterCampaignConfigDocument
         {
-            SchemaVersion = 1,
+            SchemaVersion = FilterCampaignConfigMigrator.CurrentSchemaVersion,
             ProfileId = profileId,
             Filters = filters.Select(Clone).ToList()
         };
@@ -152,6 +202,8 @@ public sealed class JsonFilterCampaignConfigRepository
                 MinimumAcceptableCount = seed?.MinimumAcceptableCount > 0
                     ? seed.MinimumAcceptableCount
                     : Math.Max(1, (int)(defaults.TargetCount * 0.6)),
+                TargetHistogramFraction = seed?.TargetHistogramFraction > 0 ? seed.TargetHistogramFraction : defaults.TargetHistogramFraction,
+                TargetToleranceFraction = seed?.TargetToleranceFraction > 0 ? seed.TargetToleranceFraction : defaults.TargetToleranceFraction,
                 TargetAdu = seed?.TargetAdu > 0 ? seed.TargetAdu : defaults.TargetAdu,
                 AduTolerance = seed?.AduTolerance > 0 ? seed.AduTolerance : defaults.AduTolerance,
                 MinExposureSeconds = seed?.MinExposureSeconds > 0 ? seed.MinExposureSeconds : defaults.MinExposureSeconds,
@@ -176,6 +228,8 @@ public sealed class JsonFilterCampaignConfigRepository
         Enabled = src.Enabled,
         TargetCount = src.TargetCount,
         MinimumAcceptableCount = src.MinimumAcceptableCount,
+        TargetHistogramFraction = src.TargetHistogramFraction,
+        TargetToleranceFraction = src.TargetToleranceFraction,
         TargetAdu = src.TargetAdu,
         AduTolerance = src.AduTolerance,
         MinExposureSeconds = src.MinExposureSeconds,

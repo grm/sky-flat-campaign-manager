@@ -4,7 +4,22 @@ public interface ICampaignService
 {
     Task<CampaignState> GetOrCreateAsync(string campaignKey, string profileId, IEnumerable<FilterCampaignSettings> filters, CampaignOptions options, CancellationToken ct = default);
     Task<CampaignRequirement> EvaluateRequirementAsync(string campaignKey, CampaignOptions options, CancellationToken ct = default);
-    Task<CampaignState> AcceptFlatAsync(string campaignKey, string filterName, double exposureSeconds, double measuredAdu, CancellationToken ct = default);
+
+    /// <summary>
+    /// Atomically records an accepted flat: count, exposure, measured level (ADU and normalized
+    /// fraction), and the sun altitude at capture time, in a single persisted save. The sun
+    /// altitude must be recorded here (not assigned to the in-memory object after this call
+    /// returns) so it survives a plugin/NINA restart — see <see cref="FilterProgress.LastSunAltitudeDegrees"/>.
+    /// </summary>
+    Task<CampaignState> AcceptFlatAsync(
+        string campaignKey,
+        string filterName,
+        double exposureSeconds,
+        double measuredAdu,
+        double? measuredHistogramFraction = null,
+        double? sunAltitudeDegrees = null,
+        CancellationToken ct = default);
+
     Task RejectFlatAsync(string campaignKey, string filterName, string reason, CancellationToken ct = default);
     Task<CampaignState> MarkCompletedAsync(string campaignKey, CampaignOptions options, CancellationToken ct = default);
     Task<CampaignState> InvalidateAsync(string campaignKey, string reason, CancellationToken ct = default);
