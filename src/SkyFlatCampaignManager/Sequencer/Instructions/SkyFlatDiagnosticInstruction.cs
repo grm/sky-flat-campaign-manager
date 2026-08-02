@@ -119,14 +119,15 @@ public class SkyFlatDiagnosticInstruction : SequenceItem
                 DryRun = false
             }, token).ConfigureAwait(false);
             sb.AppendLine($"Test capture success: {frame.Success}");
-            sb.AppendLine($"Measured median ADU: {frame.Statistics.MedianAdu:F0}");
+            sb.AppendLine($"Measured median histogram level: {frame.Statistics.MedianFraction * 100.0:F1}% / {frame.Statistics.MedianAdu:F0} ADU (max {frame.Statistics.MaxAdu:F0})");
+            var targetAdu = PluginIdentity.DefaultTargetHistogramFraction * frame.Statistics.MaxAdu;
             var est = new ProportionalFlatExposureEstimator().EstimateNextExposureSeconds(
                 TestExposureSeconds,
                 Math.Max(1, frame.Statistics.MedianAdu),
-                PluginIdentity.DefaultTargetAdu,
+                targetAdu,
                 0.001,
                 30);
-            sb.AppendLine($"Estimated exposure for target ADU: {est:F3}s");
+            sb.AppendLine($"Estimated exposure for target histogram level ({PluginIdentity.DefaultTargetHistogramFraction * 100.0:F1}%): {est:F3}s");
         }
 
         LastReport = sb.ToString();

@@ -52,7 +52,14 @@ public sealed class CampaignService : ICampaignService
         return Evaluate(state, options);
     }
 
-    public async Task<CampaignState> AcceptFlatAsync(string campaignKey, string filterName, double exposureSeconds, double measuredAdu, CancellationToken ct = default)
+    public async Task<CampaignState> AcceptFlatAsync(
+        string campaignKey,
+        string filterName,
+        double exposureSeconds,
+        double measuredAdu,
+        double? measuredHistogramFraction = null,
+        double? sunAltitudeDegrees = null,
+        CancellationToken ct = default)
     {
         var state = await RequireAsync(campaignKey, ct).ConfigureAwait(false);
         if (!state.Filters.TryGetValue(filterName, out var filter))
@@ -69,6 +76,18 @@ public sealed class CampaignService : ICampaignService
         filter.Accepted++;
         filter.LastExposureSeconds = exposureSeconds;
         filter.LastMeasuredAdu = measuredAdu;
+        if (measuredHistogramFraction is { } fraction)
+        {
+            filter.LastMeasuredHistogramFraction = fraction;
+        }
+
+        if (sunAltitudeDegrees is { } altitude)
+        {
+            // Persisted here (not by the caller mutating the returned object afterwards) so this
+            // survives a plugin/NINA restart — the whole point of ClosestToOptimalWindow learning.
+            filter.LastSunAltitudeDegrees = altitude;
+        }
+
         MaybeComplete(state);
         await _repository.SaveAsync(campaignKey, state, ct).ConfigureAwait(false);
         return state;
@@ -237,7 +256,8 @@ public sealed class CampaignService : ICampaignService
             state.Filters[filter.FilterName] = new FilterProgress
             {
                 FilterName = filter.FilterName,
-                Target = filter.TargetCount
+                Target = filter.TargetCount,
+                MinimumAcceptableCount = filter.MinimumAcceptableCount
             };
         }
 
@@ -253,12 +273,14 @@ public sealed class CampaignService : ICampaignService
                 state.Filters[filter.FilterName] = new FilterProgress
                 {
                     FilterName = filter.FilterName,
-                    Target = filter.TargetCount
+                    Target = filter.TargetCount,
+                    MinimumAcceptableCount = filter.MinimumAcceptableCount
                 };
             }
             else
             {
                 progress.Target = filter.TargetCount;
+                progress.MinimumAcceptableCount = filter.MinimumAcceptableCount;
             }
         }
     }

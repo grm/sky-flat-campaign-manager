@@ -79,18 +79,18 @@ namespace NINA.Plugin.SkyFlatCampaignManager.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("25000")]
-        public double DefaultTargetAdu {
-            get => ((double)(this["DefaultTargetAdu"]));
-            set => this["DefaultTargetAdu"] = value;
+        [global::System.Configuration.DefaultSettingValueAttribute("38.15")]
+        public double DefaultTargetHistogramPercent {
+            get => ((double)(this["DefaultTargetHistogramPercent"]));
+            set => this["DefaultTargetHistogramPercent"] = value;
         }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("2500")]
-        public double DefaultAduTolerance {
-            get => ((double)(this["DefaultAduTolerance"]));
-            set => this["DefaultAduTolerance"] = value;
+        [global::System.Configuration.DefaultSettingValueAttribute("10")]
+        public double DefaultTargetTolerancePercent {
+            get => ((double)(this["DefaultTargetTolerancePercent"]));
+            set => this["DefaultTargetTolerancePercent"] = value;
         }
 
         [global::System.Configuration.UserScopedSettingAttribute()]

@@ -15,9 +15,18 @@ public sealed class SkyFlatSessionRequest
     public string ProfileId { get; init; } = "profile";
     public CampaignMode Mode { get; init; } = CampaignMode.Automatic;
     public FilterOrderStrategyKind Strategy { get; init; } = FilterOrderStrategyKind.Adaptive;
+
+    /// <summary>Single source of truth for the whole session's time budget. See remarks on <see cref="AstronomicalWindowOptions"/>.</summary>
     public double MaxDurationMinutes { get; init; } = 90;
     public bool AllowWaitForSky { get; init; } = true;
+
+    /// <summary>
+    /// Single source of truth for how long to continuously wait for one reason (astronomical
+    /// window or filter feasibility) before giving up. Each wait reason gets its own timer that
+    /// resets when the reason changes or progress is made — see <see cref="SkyFlatSessionRunner"/>.
+    /// </summary>
     public double MaxWaitMinutes { get; init; } = 45;
+
     public WhenNoFlatsRequiredAction WhenNoFlatsRequired { get; init; } = WhenNoFlatsRequiredAction.SucceedImmediately;
     public WhenNoFilterFeasibleAction WhenNoFilterFeasible { get; init; } = WhenNoFilterFeasibleAction.PartialSuccess;
     public OnFilterErrorAction OnFilterError { get; init; } = OnFilterErrorAction.ContinueNextFilter;
@@ -33,7 +42,13 @@ public sealed class SkyFlatSessionProgress
     public string? CurrentFilter { get; set; }
     public int Accepted { get; set; }
     public int Remaining { get; set; }
+
+    /// <summary>Measured median ADU (raw), for diagnostics/logs.</summary>
     public double? MeasuredAdu { get; set; }
+
+    /// <summary>Measured median as a fraction of full scale (0.0–1.0) — the "Measured median histogram level".</summary>
+    public double? MeasuredHistogramFraction { get; set; }
+
     public double? ExposureSeconds { get; set; }
     public string StatusMessage { get; set; } = string.Empty;
     public string? WaitReason { get; set; }
@@ -53,6 +68,14 @@ public sealed class SkyFlatSessionResult
 
 public sealed class SkyFlatSessionRunner
 {
+    /// <summary>Evening sky is darkening: nudge the next probe exposure slightly longer than pure proportional scaling would.</summary>
+    private const double EveningSkyTrendFactor = 1.05;
+
+    /// <summary>Morning sky is brightening: nudge the next probe exposure slightly shorter than pure proportional scaling would.</summary>
+    private const double MorningSkyTrendFactor = 0.95;
+
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
+
     private readonly ICampaignService _campaigns;
     private readonly ICameraAcquisitionService _camera;
     private readonly IFilterWheelService _filterWheel;
@@ -106,7 +129,20 @@ public sealed class SkyFlatSessionRunner
         var previousAltitude = _sun.GetSunAltitudeDegrees(started);
         string? currentFilter = null;
         var rejectionStreak = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var exposureGuess = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+        // Per-session exposure estimates for filters actually captured this session (post-capture,
+        // most accurate). Filters not yet captured this session fall back to a projection from
+        // persisted history in EstimateFeasibility.
+        var sessionEstimates = new Dictionary<string, ExposureEstimateResult>(StringComparer.OrdinalIgnoreCase);
+
+        // Filters repeatedly rejected this session are parked here so the strategy cannot pick the
+        // same broken filter forever. Session-scoped only — cleared on the next run.
+        var unavailableFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Independent, resettable wait timers — see the AstronomicalWindow*/FilterNotFeasible reasons.
+        // Each represents *continuous* waiting for its own reason, not elapsed time since session start.
+        var windowWait = new WaitTracker(_clock);
+        var filterWait = new WaitTracker(_clock);
 
         void Report(SessionState state, string message, string? wait = null, string? stop = null)
         {
@@ -120,6 +156,36 @@ public sealed class SkyFlatSessionRunner
             {
                 _log?.Invoke($"[{state}] {message}");
             }
+        }
+
+        ExposureEstimateResult EstimateFeasibility(FilterCampaignSettings filter, CampaignState campaignState, CampaignMode currentMode)
+        {
+            if (sessionEstimates.TryGetValue(filter.FilterName, out var cached))
+            {
+                return cached;
+            }
+
+            if (campaignState.Filters.TryGetValue(filter.FilterName, out var progress2)
+                && progress2.LastExposureSeconds is { } lastExposure && lastExposure > 0
+                && progress2.LastMeasuredAdu is { } lastAdu && lastAdu > 0)
+            {
+                // Historical ADU predates knowledge of the real bit depth for that capture, so the
+                // legacy full-scale assumption is the best available projection. This only affects
+                // the *feasibility guess* for a filter not yet captured this session — actual
+                // acceptance always uses the real captured frame's MaxAdu.
+                var targetAdu = filter.TargetHistogramFraction * PluginIdentity.LegacyMigrationMaxAdu;
+                var trend = currentMode == CampaignMode.Evening ? EveningSkyTrendFactor : MorningSkyTrendFactor;
+                return _estimator.Estimate(lastExposure, lastAdu, targetAdu, filter.MinExposureSeconds, filter.MaxExposureSeconds, trend);
+            }
+
+            // No history at all (brand-new filter): optimistically try the default starting guess.
+            var defaultGuess = Math.Clamp(1.0, filter.MinExposureSeconds, filter.MaxExposureSeconds);
+            return new ExposureEstimateResult
+            {
+                UnclampedExposureSeconds = defaultGuess,
+                ClampedExposureSeconds = defaultGuess,
+                Feasibility = ExposureFeasibility.Feasible
+            };
         }
 
         try
@@ -183,14 +249,13 @@ public sealed class SkyFlatSessionRunner
             }
 
             var strategy = FilterSelectionStrategyFactory.Create(request.Strategy);
-            var waitStarted = _clock.UtcNow;
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 if ((_clock.UtcNow - started).TotalMinutes >= request.MaxDurationMinutes)
                 {
-                    Report(SessionState.StoppedByTimeout, "Max duration reached", stop: "MaxDuration");
-                    return Result(SessionState.StoppedByTimeout, "Max duration reached", campaign, accepted, rejected);
+                    Report(SessionState.StoppedByTimeout, "Max duration reached", stop: SessionStopReasons.MaxDuration);
+                    return Result(SessionState.StoppedByTimeout, SessionStopReasons.MaxDuration, campaign, accepted, rejected);
                 }
 
                 campaign = await _campaigns.GetOrCreateAsync(request.CampaignKey, request.ProfileId, request.Filters, request.Options, cancellationToken)
@@ -202,72 +267,142 @@ public sealed class SkyFlatSessionRunner
                 {
                     campaign = await _campaigns.MarkCompletedAsync(request.CampaignKey, request.Options, cancellationToken)
                         .ConfigureAwait(false);
-                    Report(SessionState.Completed, "Campaign complete", stop: "Completed");
+                    Report(SessionState.Completed, "Campaign complete", stop: SessionStopReasons.Completed);
                     _notifications.Success("Sky flat campaign completed.");
-                    return Result(SessionState.Completed, "Campaign complete", campaign, accepted, rejected);
+                    return Result(SessionState.Completed, SessionStopReasons.Completed, campaign, accepted, rejected);
                 }
 
                 var sunAlt = _sun.GetSunAltitudeDegrees(_clock.UtcNow);
-                mode = _windows.ResolveMode(mode == CampaignMode.Automatic ? CampaignMode.Automatic : mode, sunAlt, previousAltitude);
+                mode = _windows.ResolveMode(mode, sunAlt, previousAltitude);
                 previousAltitude = sunAlt;
                 window = mode == CampaignMode.Morning ? request.Options.MorningWindow : request.Options.EveningWindow;
 
-                if (!_windows.IsWithinSafetyWindow(sunAlt, window))
+                var windowState = _windows.Evaluate(mode, sunAlt, window);
+                if (windowState != AstronomicalWindowState.Open)
                 {
-                    if (request.AllowWaitForSky && (_clock.UtcNow - waitStarted).TotalMinutes < request.MaxWaitMinutes)
+                    if (windowState == AstronomicalWindowState.TooEarly)
                     {
-                        Report(SessionState.WaitingForAstronomicalWindow, $"Sun altitude {sunAlt:F1}° outside window", wait: "AstronomicalWindow");
-                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
-                        continue;
+                        if (request.AllowWaitForSky)
+                        {
+                            var elapsed = windowWait.ElapsedMinutes(SessionWaitReasons.AstronomicalWindowNotOpenYet);
+                            if (elapsed < request.MaxWaitMinutes)
+                            {
+                                Report(SessionState.WaitingForAstronomicalWindow,
+                                    $"Sun altitude {sunAlt:F1}° has not reached the {mode} window [{window.MinSunAltitudeDegrees:F1}°, {window.MaxSunAltitudeDegrees:F1}°] yet",
+                                    wait: SessionWaitReasons.AstronomicalWindowNotOpenYet);
+                                await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                                continue;
+                            }
+
+                            Report(SessionState.StoppedByWindow, "Waited for the astronomical window to open, but it did not open in time",
+                                stop: SessionStopReasons.AstronomicalWindowWaitTimeout);
+                            return Result(SessionState.StoppedByWindow, SessionStopReasons.AstronomicalWindowWaitTimeout, campaign, accepted, rejected);
+                        }
+
+                        // Not open yet and waiting is disabled — stop immediately, do not poll.
+                        Report(SessionState.StoppedByWindow,
+                            $"Astronomical window not open yet (sun altitude {sunAlt:F1}°) and waiting is disabled",
+                            stop: SessionStopReasons.AstronomicalWindowNotOpenYet);
+                        return Result(SessionState.StoppedByWindow, SessionStopReasons.AstronomicalWindowNotOpenYet, campaign, accepted, rejected);
                     }
 
-                    Report(SessionState.StoppedByWindow, "Astronomical safety window closed", stop: "WindowClosed");
-                    return Result(SessionState.StoppedByWindow, "Astronomical safety window closed", campaign, accepted, rejected);
+                    // TooLate: the window has already passed this session and physically cannot
+                    // reopen (the sun keeps moving the same direction). Stop immediately — never
+                    // wait, regardless of AllowWaitForSky. This is a normal closed twilight window,
+                    // not a fault.
+                    var reason = mode == CampaignMode.Evening ? SessionStopReasons.EveningSkyTooDark : SessionStopReasons.MorningSkyTooBright;
+                    var message = mode == CampaignMode.Evening
+                        ? $"Sun altitude {sunAlt:F1}° is below the evening window minimum ({window.MinSunAltitudeDegrees:F1}°) — sky is already too dark for flats; this is a normal closed twilight window."
+                        : $"Sun altitude {sunAlt:F1}° is above the morning window maximum ({window.MaxSunAltitudeDegrees:F1}°) — sky is already too bright for flats; this is a normal closed twilight window.";
+                    Report(SessionState.StoppedByWindow, message, stop: reason);
+                    return Result(SessionState.StoppedByWindow, reason, campaign, accepted, rejected);
                 }
 
+                // Window is open — any prior "not open yet" wait no longer applies.
+                windowWait.Reset();
+
                 Report(SessionState.SelectingFilter, "Selecting next filter");
-                var next = strategy.SelectNext(
-                    request.Filters.ToList(),
-                    campaign,
-                    mode,
-                    new FilterSelectionContext
-                    {
-                        CurrentSunAltitudeDegrees = sunAlt,
-                        CurrentFilterName = currentFilter,
-                        EstimatedExposureSecondsByFilter = exposureGuess
-                    });
+
+                var incompleteCandidates = request.Filters
+                    .Where(f => f.Enabled
+                        && !unavailableFilters.Contains(f.FilterName)
+                        && campaign.Filters.TryGetValue(f.FilterName, out var fp) && fp.IsIncomplete)
+                    .ToList();
+
+                if (incompleteCandidates.Count == 0)
+                {
+                    Report(SessionState.Completed, "No incomplete filters", stop: SessionStopReasons.NoFilters);
+                    return Result(SessionState.Completed, SessionStopReasons.NoFilters, campaign, accepted, rejected);
+                }
+
+                var feasibilityByFilter = incompleteCandidates.ToDictionary(
+                    f => f.FilterName,
+                    f => EstimateFeasibility(f, campaign, mode),
+                    StringComparer.OrdinalIgnoreCase);
+
+                var feasibleCandidates = incompleteCandidates
+                    .Where(f => feasibilityByFilter[f.FilterName].Feasibility == ExposureFeasibility.Feasible)
+                    .ToList();
+
+                FilterCampaignSettings? next = null;
+                if (feasibleCandidates.Count > 0)
+                {
+                    next = strategy.SelectNext(
+                        feasibleCandidates,
+                        campaign,
+                        mode,
+                        new FilterSelectionContext
+                        {
+                            CurrentSunAltitudeDegrees = sunAlt,
+                            CurrentFilterName = currentFilter,
+                            EstimatedExposureSecondsByFilter = feasibleCandidates.ToDictionary(
+                                f => f.FilterName,
+                                f => feasibilityByFilter[f.FilterName].ClampedExposureSeconds,
+                                StringComparer.OrdinalIgnoreCase)
+                        });
+                }
 
                 if (next is null)
                 {
-                    Report(SessionState.Completed, "No incomplete filters", stop: "NoFilters");
-                    return Result(SessionState.Completed, "No incomplete filters", campaign, accepted, rejected);
-                }
+                    // Evaluate ALL incomplete filters (not just the one the strategy would have
+                    // preferred) before declaring the session stuck.
+                    var canImprove = incompleteCandidates.Any(f =>
+                        ExposureFeasibilityRules.CanImproveByWaiting(mode, feasibilityByFilter[f.FilterName].Feasibility));
+                    var shouldWait = canImprove && request.AllowWaitForSky && request.WhenNoFilterFeasible == WhenNoFilterFeasibleAction.Wait;
 
-                // Feasibility: estimated exposure within limits
-                var guess = exposureGuess.TryGetValue(next.FilterName, out var g)
-                    ? g
-                    : campaign.Filters.TryGetValue(next.FilterName, out var fp) && fp.LastExposureSeconds is { } last
-                        ? last
-                        : Math.Clamp(1.0, next.MinExposureSeconds, next.MaxExposureSeconds);
-
-                if (guess < next.MinExposureSeconds || guess > next.MaxExposureSeconds)
-                {
-                    if (request.AllowWaitForSky && request.WhenNoFilterFeasible == WhenNoFilterFeasibleAction.Wait
-                        && (_clock.UtcNow - waitStarted).TotalMinutes < request.MaxWaitMinutes)
+                    if (shouldWait)
                     {
-                        Report(SessionState.WaitingForAstronomicalWindow, $"Filter {next.FilterName} not feasible yet", wait: "FilterNotFeasible");
-                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
-                        continue;
+                        var elapsed = filterWait.ElapsedMinutes(SessionWaitReasons.FilterNotFeasible);
+                        if (elapsed < request.MaxWaitMinutes)
+                        {
+                            Report(SessionState.WaitingForAstronomicalWindow,
+                                "No incomplete filter is exposure-feasible yet, but at least one may become feasible as the sky changes",
+                                wait: SessionWaitReasons.FilterNotFeasible);
+                            await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        Report(SessionState.StoppedByWindow, "Waited for a filter to become exposure-feasible, but none did in time",
+                            stop: SessionStopReasons.NoFilterFeasibleWaitTimeout);
+                        return Result(SessionState.StoppedByWindow, SessionStopReasons.NoFilterFeasibleWaitTimeout, campaign, accepted, rejected);
                     }
 
                     if (request.WhenNoFilterFeasible == WhenNoFilterFeasibleAction.Fail)
                     {
-                        throw new PluginError($"No filter currently feasible (tried {next.FilterName}).", ErrorCategory.Session);
+                        throw new PluginError(
+                            $"No filter currently feasible (checked {incompleteCandidates.Count} incomplete filter(s)).",
+                            ErrorCategory.Session);
                     }
 
-                    Report(SessionState.StoppedByWindow, "No filter currently feasible", stop: "NoFilterFeasible");
-                    return Result(SessionState.StoppedByWindow, "No filter currently feasible", campaign, accepted, rejected);
+                    var detail = string.Join(" ", incompleteCandidates.Select(f =>
+                        $"{f.FilterName}: {ExposureFeasibilityRules.Describe(mode, feasibilityByFilter[f.FilterName].Feasibility)}"));
+                    Report(SessionState.StoppedByWindow, $"No incomplete filter is currently exposure-feasible. {detail}",
+                        stop: SessionStopReasons.NoFilterFeasible);
+                    return Result(SessionState.StoppedByWindow, SessionStopReasons.NoFilterFeasible, campaign, accepted, rejected);
                 }
+
+                // A feasible filter was found — any prior "no filter feasible" wait no longer applies.
+                filterWait.Reset();
 
                 try
                 {
@@ -286,7 +421,7 @@ public sealed class SkyFlatSessionRunner
                     // Optional brightness probe for anticipation only
                     _ = await _brightness.GetSampleAsync(cancellationToken).ConfigureAwait(false);
 
-                    var exposure = guess;
+                    var exposure = feasibilityByFilter[next.FilterName].ClampedExposureSeconds;
                     Report(SessionState.Capturing, $"Capturing {next.FilterName} @ {exposure:F3}s");
                     sessionProgress.ExposureSeconds = exposure;
 
@@ -306,11 +441,12 @@ public sealed class SkyFlatSessionRunner
 
                     Report(SessionState.Validating, "Validating frame");
                     sessionProgress.MeasuredAdu = frame.Statistics.MedianAdu;
+                    sessionProgress.MeasuredHistogramFraction = frame.Statistics.MedianFraction;
 
                     var validation = _validator.Validate(frame.Statistics, new FlatValidationRequest
                     {
-                        TargetAdu = next.TargetAdu,
-                        AduTolerance = next.AduTolerance,
+                        TargetHistogramFraction = next.TargetHistogramFraction,
+                        TargetToleranceFraction = next.TargetToleranceFraction,
                         MaxSaturationFraction = request.Options.MaxSaturationFraction,
                         ExpectedFilterName = next.FilterName,
                         ActualFilterName = frame.FilterName,
@@ -322,13 +458,16 @@ public sealed class SkyFlatSessionRunner
                         AcquisitionSucceeded = frame.Success
                     });
 
-                    exposureGuess[next.FilterName] = _estimator.EstimateNextExposureSeconds(
+                    var maxAdu = frame.Statistics.MaxAdu > 0 ? frame.Statistics.MaxAdu : PluginIdentity.LegacyMigrationMaxAdu;
+                    var targetAduForEstimator = next.TargetHistogramFraction * maxAdu;
+                    var measuredAduForEstimator = frame.Statistics.MedianAdu <= 0 ? 1 : frame.Statistics.MedianAdu;
+                    sessionEstimates[next.FilterName] = _estimator.Estimate(
                         exposure,
-                        frame.Statistics.MedianAdu <= 0 ? 1 : frame.Statistics.MedianAdu,
-                        next.TargetAdu,
+                        measuredAduForEstimator,
+                        targetAduForEstimator,
                         next.MinExposureSeconds,
                         next.MaxExposureSeconds,
-                        skyTrendFactor: mode == CampaignMode.Evening ? 1.05 : 0.95);
+                        skyTrendFactor: mode == CampaignMode.Evening ? EveningSkyTrendFactor : MorningSkyTrendFactor);
 
                     if (validation.IsAccepted)
                     {
@@ -338,17 +477,9 @@ public sealed class SkyFlatSessionRunner
                             next.FilterName,
                             exposure,
                             validation.MeasuredAdu,
+                            validation.MeasuredHistogramFraction,
+                            sunAlt,
                             cancellationToken).ConfigureAwait(false);
-
-                        if (campaign.Filters.TryGetValue(next.FilterName, out var updated))
-                        {
-                            updated.LastSunAltitudeDegrees = sunAlt;
-                        }
-
-                        await _campaigns.GetOrCreateAsync(request.CampaignKey, request.ProfileId, request.Filters, request.Options, cancellationToken)
-                            .ConfigureAwait(false);
-                        // Re-save altitude learning
-                        // AcceptFlat already persisted counts; learning fields updated via repository reload below if needed.
 
                         accepted++;
                         rejectionStreak[next.FilterName] = 0;
@@ -365,9 +496,10 @@ public sealed class SkyFlatSessionRunner
 
                         if (rejectionStreak[next.FilterName] >= request.Options.MaxRejectedAttemptsPerFilter)
                         {
+                            unavailableFilters.Add(next.FilterName);
                             currentFilter = null; // force strategy to pick another
                             rejectionStreak[next.FilterName] = 0;
-                            Report(SessionState.SwitchingFilter, $"Too many rejects for {next.FilterName}");
+                            Report(SessionState.SwitchingFilter, $"Too many rejects for {next.FilterName}; parking it for the rest of this session");
                         }
                     }
                 }
@@ -383,19 +515,19 @@ public sealed class SkyFlatSessionRunner
                 }
             }
 
-            Report(SessionState.Cancelled, "Cancelled", stop: "Cancelled");
-            return Result(SessionState.Cancelled, "Cancelled", campaign, accepted, rejected);
+            Report(SessionState.Cancelled, "Cancelled", stop: SessionStopReasons.Cancelled);
+            return Result(SessionState.Cancelled, SessionStopReasons.Cancelled, campaign, accepted, rejected);
         }
         catch (OperationCanceledException)
         {
-            Report(SessionState.Cancelled, "Cancelled", stop: "Cancelled");
+            Report(SessionState.Cancelled, "Cancelled", stop: SessionStopReasons.Cancelled);
             var campaign = await _campaigns.EvaluateRequirementAsync(request.CampaignKey, request.Options, CancellationToken.None)
                 .ConfigureAwait(false);
-            return Result(SessionState.Cancelled, "Cancelled", campaign.Campaign, accepted, rejected);
+            return Result(SessionState.Cancelled, SessionStopReasons.Cancelled, campaign.Campaign, accepted, rejected);
         }
         catch (Exception ex)
         {
-            Report(SessionState.Faulted, ex.Message, stop: "Faulted");
+            Report(SessionState.Faulted, ex.Message, stop: SessionStopReasons.Faulted);
             _notifications.Error(ex.Message);
             throw;
         }
@@ -424,4 +556,34 @@ public sealed class SkyFlatSessionRunner
             AcceptedThisSession = accepted,
             RejectedThisSession = rejected
         };
+
+    /// <summary>
+    /// Tracks continuous elapsed time for a single named wait reason. Calling
+    /// <see cref="ElapsedMinutes"/> with a different reason than last time — or after
+    /// <see cref="Reset"/> — starts the timer over at zero, so <c>MaxWaitMinutes</c> always
+    /// represents continuous waiting for the *current* reason rather than elapsed session time.
+    /// </summary>
+    private sealed class WaitTracker
+    {
+        private readonly IClock _clock;
+        private string? _activeReason;
+        private DateTime _startedUtc;
+
+        public WaitTracker(IClock clock) => _clock = clock;
+
+        public double ElapsedMinutes(string reason)
+        {
+            var now = _clock.UtcNow;
+            if (!string.Equals(_activeReason, reason, StringComparison.Ordinal))
+            {
+                _activeReason = reason;
+                _startedUtc = now;
+                return 0;
+            }
+
+            return (now - _startedUtc).TotalMinutes;
+        }
+
+        public void Reset() => _activeReason = null;
+    }
 }

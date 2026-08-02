@@ -29,4 +29,32 @@ public sealed class CampaignState
     public int TotalAccepted => Filters.Values.Sum(f => f.Accepted);
     public int TotalTarget => Filters.Values.Sum(f => f.Target);
     public int TotalRemaining => Filters.Values.Sum(f => f.Remaining);
+
+    /// <summary>
+    /// Campaign-wide completion distinction across all filters with a target. <c>Complete</c>
+    /// requires every filter to reach <see cref="FilterCampaignSettings.TargetCount"/> — reaching
+    /// only <see cref="FilterCampaignSettings.MinimumAcceptableCount"/> everywhere is reported as
+    /// <see cref="FilterCompletionStatus.MinimumReached"/> and never marks the campaign fully done.
+    /// </summary>
+    [JsonIgnore]
+    public FilterCompletionStatus CompletionStatus
+    {
+        get
+        {
+            var active = Filters.Values.Where(f => f.Target > 0).ToList();
+            if (active.Count == 0)
+            {
+                return FilterCompletionStatus.Incomplete;
+            }
+
+            if (active.All(f => f.Status == FilterCompletionStatus.Complete))
+            {
+                return FilterCompletionStatus.Complete;
+            }
+
+            return active.All(f => f.Status != FilterCompletionStatus.Incomplete)
+                ? FilterCompletionStatus.MinimumReached
+                : FilterCompletionStatus.Incomplete;
+        }
+    }
 }

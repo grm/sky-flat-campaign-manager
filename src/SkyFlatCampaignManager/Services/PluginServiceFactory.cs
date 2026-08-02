@@ -51,18 +51,28 @@ public static class PluginServiceFactory
     public static JsonFilterCampaignConfigRepository CreateFilterConfigRepository()
         => new(new RealFileSystem(), ResolveStateDirectory());
 
-    public static FilterCampaignDefaults CreateFilterDefaults() => new()
+    public static FilterCampaignDefaults CreateFilterDefaults()
     {
-        TargetCount = Settings.Default.DefaultTargetCount,
-        TargetAdu = Settings.Default.DefaultTargetAdu,
-        AduTolerance = Settings.Default.DefaultAduTolerance,
-        MinExposureSeconds = PluginIdentity.DefaultMinExposureSeconds,
-        MaxExposureSeconds = PluginIdentity.DefaultMaxExposureSeconds,
-        Gain = -1,
-        Offset = -1,
-        BinningX = 1,
-        BinningY = 1
-    };
+        var targetHistogramFraction = Math.Clamp(Settings.Default.DefaultTargetHistogramPercent / 100.0, 0d, 1d);
+        var targetToleranceFraction = Math.Max(0d, Settings.Default.DefaultTargetTolerancePercent / 100.0);
+
+        return new FilterCampaignDefaults
+        {
+            TargetCount = Settings.Default.DefaultTargetCount,
+            TargetHistogramFraction = targetHistogramFraction,
+            TargetToleranceFraction = targetToleranceFraction,
+            // Legacy ADU fields are derived only for backward compatibility with any code/tooling
+            // still reading them; live acceptance always uses the fraction fields above.
+            TargetAdu = targetHistogramFraction * PluginIdentity.LegacyMigrationMaxAdu,
+            AduTolerance = targetHistogramFraction * PluginIdentity.LegacyMigrationMaxAdu * targetToleranceFraction,
+            MinExposureSeconds = PluginIdentity.DefaultMinExposureSeconds,
+            MaxExposureSeconds = PluginIdentity.DefaultMaxExposureSeconds,
+            Gain = -1,
+            Offset = -1,
+            BinningX = 1,
+            BinningY = 1
+        };
+    }
 
     public static List<FilterCampaignSettings> CreateFilterSettings(IProfileService profileService, int? targetOverride = null)
     {
@@ -80,6 +90,8 @@ public static class PluginServiceFactory
             .Where(f => !string.IsNullOrWhiteSpace(f.Name))
             .Select(f => f.Name)
             .ToList();
+
+        var defaults = CreateFilterDefaults();
 
         var seed = new Dictionary<string, FilterCampaignSettings>(StringComparer.OrdinalIgnoreCase);
         foreach (var filter in filters)
@@ -105,18 +117,21 @@ public static class PluginServiceFactory
                 BinningY = Math.Max(1, (int)(fw.Binning?.Y ?? 1)),
                 MinExposureSeconds = fw.MinFlatExposureTime > 0 ? fw.MinFlatExposureTime : PluginIdentity.DefaultMinExposureSeconds,
                 MaxExposureSeconds = fw.MaxFlatExposureTime > 0 ? fw.MaxFlatExposureTime : PluginIdentity.DefaultMaxExposureSeconds,
-                TargetAdu = Settings.Default.DefaultTargetAdu,
-                AduTolerance = Settings.Default.DefaultAduTolerance,
-                TargetCount = Settings.Default.DefaultTargetCount
+                TargetHistogramFraction = defaults.TargetHistogramFraction,
+                TargetToleranceFraction = defaults.TargetToleranceFraction,
+                TargetAdu = defaults.TargetAdu,
+                AduTolerance = defaults.AduTolerance,
+                TargetCount = defaults.TargetCount
             };
         }
 
-        var defaults = CreateFilterDefaults();
         if (targetOverride is int t)
         {
             defaults = new FilterCampaignDefaults
             {
                 TargetCount = t,
+                TargetHistogramFraction = defaults.TargetHistogramFraction,
+                TargetToleranceFraction = defaults.TargetToleranceFraction,
                 TargetAdu = defaults.TargetAdu,
                 AduTolerance = defaults.AduTolerance,
                 MinExposureSeconds = defaults.MinExposureSeconds,

@@ -54,8 +54,8 @@ public class ExposureEstimatorTests
         var stats = new ImageStatisticsResult { MedianAdu = 40000, SaturatedFraction = 0.2 };
         var result = validator.Validate(stats, new FlatValidationRequest
         {
-            TargetAdu = 25000,
-            AduTolerance = 2500,
+            TargetHistogramFraction = 25000d / 65535d,
+            TargetToleranceFraction = 0.10,
             ExpectedFilterName = "L",
             ActualFilterName = "L"
         });
@@ -69,14 +69,67 @@ public class ExposureEstimatorTests
         var stats = new ImageStatisticsResult { MedianAdu = 24500, SaturatedFraction = 0 };
         var result = validator.Validate(stats, new FlatValidationRequest
         {
-            TargetAdu = 25000,
-            AduTolerance = 2500,
+            TargetHistogramFraction = 25000d / 65535d,
+            TargetToleranceFraction = 0.10,
             ExpectedFilterName = "Ha",
             ActualFilterName = "Ha",
             ImageSaved = true,
             AcquisitionSucceeded = true
         });
         result.IsAccepted.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validator_uses_actual_image_bit_depth_not_65535()
+    {
+        // 12-bit image: full scale 4095. 40% target = 1638 ADU, ±10% of target = ±163.8 ADU.
+        var validator = new DefaultFlatFrameValidator();
+        var stats = new ImageStatisticsResult { MedianAdu = 1638, MaxAdu = 4095, SaturatedFraction = 0 };
+        var result = validator.Validate(stats, new FlatValidationRequest
+        {
+            TargetHistogramFraction = 0.40,
+            TargetToleranceFraction = 0.10,
+            ExpectedFilterName = "L",
+            ActualFilterName = "L"
+        });
+        result.IsAccepted.Should().BeTrue();
+        result.MeasuredHistogramFraction.Should().BeApproximately(0.40, 0.001);
+        result.TargetAdu.Should().BeApproximately(1638, 0.5);
+    }
+
+    [Fact]
+    public void Validator_tolerance_is_percentage_of_target_not_of_full_scale()
+    {
+        // Target 40% of a 16-bit range, tolerance 10% of target -> accepted range is 36%-44%,
+        // not 30%-50% (which a fixed-full-scale-percentage-points interpretation would give).
+        var validator = new DefaultFlatFrameValidator();
+        var maxAdu = 65535d;
+        var target = 0.40 * maxAdu;
+
+        var justInside = new ImageStatisticsResult { MedianAdu = 0.361 * maxAdu, MaxAdu = maxAdu };
+        var justOutside = new ImageStatisticsResult { MedianAdu = 0.359 * maxAdu, MaxAdu = maxAdu };
+        var request = new FlatValidationRequest { TargetHistogramFraction = 0.40, TargetToleranceFraction = 0.10, ExpectedFilterName = "L", ActualFilterName = "L" };
+
+        validator.Validate(justInside, request).IsAccepted.Should().BeTrue();
+        validator.Validate(justOutside, request).IsAccepted.Should().BeFalse();
+        _ = target;
+    }
+
+    [Fact]
+    public void Validator_validates_median_and_reports_mean_as_diagnostic_only()
+    {
+        var validator = new DefaultFlatFrameValidator();
+        // Median is within tolerance, mean is not — acceptance must follow the median.
+        var stats = new ImageStatisticsResult { MedianAdu = 25000, MeanAdu = 40000, MaxAdu = 65535 };
+        var result = validator.Validate(stats, new FlatValidationRequest
+        {
+            TargetHistogramFraction = 25000d / 65535d,
+            TargetToleranceFraction = 0.10,
+            ExpectedFilterName = "L",
+            ActualFilterName = "L"
+        });
+        result.IsAccepted.Should().BeTrue();
+        result.MeasuredMeanAdu.Should().Be(40000);
     }
 
     [Fact]
