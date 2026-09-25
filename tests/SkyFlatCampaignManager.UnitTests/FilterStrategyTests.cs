@@ -11,8 +11,8 @@ public class FilterStrategyTests
     {
         var filters = new List<FilterCampaignSettings>
         {
-            new() { FilterName = "L", Enabled = true, TargetCount = 50, ManualEveningOrder = 3, ManualMorningOrder = 1, Priority = 2, MaxExposureSeconds = 2 },
-            new() { FilterName = "Ha", Enabled = true, TargetCount = 50, ManualEveningOrder = 1, ManualMorningOrder = 3, Priority = 1, MaxExposureSeconds = 20 },
+            new() { FilterName = "L", Enabled = true, TargetCount = 50, ManualEveningOrder = 3, ManualMorningOrder = 1, Priority = 2, MinExposureSeconds = 0.5, MaxExposureSeconds = 2 },
+            new() { FilterName = "Ha", Enabled = true, TargetCount = 50, ManualEveningOrder = 1, ManualMorningOrder = 3, Priority = 1, MinExposureSeconds = 0.5, MaxExposureSeconds = 20 },
             new() { FilterName = "OIII", Enabled = false, TargetCount = 50 }
         };
         var campaign = new CampaignState
@@ -32,8 +32,7 @@ public class FilterStrategyTests
     public void Evening_manual_prefers_configured_order_among_incomplete()
     {
         var (filters, campaign) = Setup();
-        var strategy = new ManualOrderFilterSelectionStrategy();
-        var next = strategy.SelectNext(filters, campaign, CampaignMode.Evening, new FilterSelectionContext());
+        var next = new ManualOrderFilterSelectionStrategy().SelectNext(filters, campaign, CampaignMode.Evening, new FilterSelectionContext());
         next!.FilterName.Should().Be("Ha");
     }
 
@@ -56,7 +55,7 @@ public class FilterStrategyTests
     }
 
     [Fact]
-    public void Adaptive_keeps_current_filter()
+    public void Adaptive_evening_prioritizes_filter_nearest_max_exposure_limit()
     {
         var (filters, campaign) = Setup();
         campaign.Filters["L"].Accepted = 0;
@@ -64,6 +63,17 @@ public class FilterStrategyTests
         {
             CurrentFilterName = "L"
         });
+        next!.FilterName.Should().Be("Ha");
+    }
+
+    [Fact]
+    public void Adaptive_morning_prioritizes_filter_nearest_min_exposure_limit()
+    {
+        var (filters, campaign) = Setup();
+        campaign.Filters["L"].Accepted = 0;
+        campaign.Filters["L"].LastExposureSeconds = 0.6;
+        campaign.Filters["Ha"].LastExposureSeconds = 8;
+        var next = new AdaptiveFilterSelectionStrategy().SelectNext(filters, campaign, CampaignMode.Morning, new FilterSelectionContext());
         next!.FilterName.Should().Be("L");
     }
 

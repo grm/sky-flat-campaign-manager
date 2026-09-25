@@ -21,22 +21,20 @@ public class HistogramMigrationTests
         public byte[] ReadAllBytes(string path) => Convert.FromBase64String(_files[path]);
         public void Replace(string sourceFileName, string destinationFileName, string? destinationBackupFileName)
         {
-            if (destinationBackupFileName is not null && _files.TryGetValue(destinationFileName, out var old))
-                _files[destinationBackupFileName] = old;
+            if (destinationBackupFileName is not null && _files.TryGetValue(destinationFileName, out var old)) _files[destinationBackupFileName] = old;
             _files[destinationFileName] = _files[sourceFileName];
             _files.Remove(sourceFileName);
         }
         public void Delete(string path) => _files.Remove(path);
         public void Copy(string source, string destination, bool overwrite) => _files[destination] = _files[source];
         public IEnumerable<string> EnumerateFiles(string path, string searchPattern) => _files.Keys;
-
         public void Seed(string path, string contents) => _files[path] = contents;
     }
 
     [Fact]
-    public void Default_fraction_constants_preserve_legacy_25000_over_65535_behaviour()
+    public void New_install_defaults_to_midscale_histogram_with_ten_percent_of_target_tolerance()
     {
-        PluginIdentity.DefaultTargetHistogramFraction.Should().BeApproximately(0.3815, 0.0005);
+        PluginIdentity.DefaultTargetHistogramFraction.Should().BeApproximately(0.50, 0.0001);
         PluginIdentity.DefaultTargetToleranceFraction.Should().BeApproximately(0.10, 0.0001);
     }
 
@@ -45,7 +43,6 @@ public class HistogramMigrationTests
     {
         var filter = new FilterCampaignSettings { FilterName = "L", TargetAdu = 25000, AduTolerance = 2500 };
         FilterCampaignConfigMigrator.MigrateLegacyAduToFraction(filter);
-
         filter.TargetHistogramFraction.Should().BeApproximately(0.3815, 0.0005);
         filter.TargetToleranceFraction.Should().BeApproximately(0.10, 0.0001);
     }
@@ -53,12 +50,10 @@ public class HistogramMigrationTests
     [Fact]
     public void Migrator_converts_custom_legacy_values()
     {
-        // A user who customized TargetAdu/AduTolerance before upgrading must keep equivalent behaviour.
         var filter = new FilterCampaignSettings { FilterName = "Ha", TargetAdu = 30000, AduTolerance = 6000 };
         FilterCampaignConfigMigrator.MigrateLegacyAduToFraction(filter);
-
         filter.TargetHistogramFraction.Should().BeApproximately(30000d / 65535d, 0.0001);
-        filter.TargetToleranceFraction.Should().BeApproximately(0.20, 0.0001); // 6000/30000
+        filter.TargetToleranceFraction.Should().BeApproximately(0.20, 0.0001);
     }
 
     [Fact]
@@ -73,8 +68,6 @@ public class HistogramMigrationTests
         migrated.SchemaVersion.Should().Be(FilterCampaignConfigMigrator.CurrentSchemaVersion);
         migrated.Filters[0].TargetHistogramFraction.Should().BeApproximately(0.3815, 0.0005);
 
-        // A document already at the current schema must not have its fraction recomputed from ADU
-        // (the fraction is authoritative going forward; legacy ADU fields may be stale).
         var newDoc = new FilterCampaignConfigDocument
         {
             SchemaVersion = FilterCampaignConfigMigrator.CurrentSchemaVersion,
@@ -100,13 +93,11 @@ public class HistogramMigrationTests
         }
         """;
         fs.Seed(repo.GetPath("p1"), legacyJson);
-
         var doc = repo.Load("p1");
-
         doc.SchemaVersion.Should().Be(FilterCampaignConfigMigrator.CurrentSchemaVersion);
         var filter = doc.Filters.Single();
-        filter.TargetCount.Should().Be(40); // untouched
-        filter.Gain.Should().Be(100); // untouched
+        filter.TargetCount.Should().Be(40);
+        filter.Gain.Should().Be(100);
         filter.TargetHistogramFraction.Should().BeApproximately(0.3815, 0.0005);
         filter.TargetToleranceFraction.Should().BeApproximately(0.10, 0.0001);
     }
@@ -114,12 +105,9 @@ public class HistogramMigrationTests
     [Fact]
     public async Task Existing_campaign_progress_is_not_invalidated_by_settings_migration()
     {
-        // The filter config migration only touches FilterCampaignSettings (the target/tolerance
-        // configuration document); it must never reach into or reset campaign progress.
         var fs = new MemoryFs();
         var configRepo = new JsonFilterCampaignConfigRepository(fs, "/state");
         var campaignRepo = new JsonCampaignRepository(fs, "/state");
-
         var campaign = new CampaignState
         {
             CampaignId = "2026-08-01-default",
@@ -127,11 +115,9 @@ public class HistogramMigrationTests
             Filters = { ["L"] = new FilterProgress { FilterName = "L", Target = 50, Accepted = 12 } }
         };
         await campaignRepo.SaveAsync("default", campaign);
-
         configRepo.Save("p1", new[] { new FilterCampaignSettings { FilterName = "L", TargetAdu = 25000, AduTolerance = 2500 } });
         var migratedDoc = configRepo.Load("p1");
         migratedDoc.Filters[0].TargetHistogramFraction.Should().BeGreaterThan(0);
-
         var reloadedCampaign = await campaignRepo.LoadAsync("default");
         reloadedCampaign!.Filters["L"].Accepted.Should().Be(12);
     }

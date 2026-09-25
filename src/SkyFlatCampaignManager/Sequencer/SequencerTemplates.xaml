@@ -7,15 +7,14 @@
     xmlns:camp="clr-namespace:SkyFlatCampaignManager.Core.Campaigns;assembly=SkyFlatCampaignManager.Core"
     x:Class="NINA.Plugin.SkyFlatCampaignManager.Sequencer.SequencerTemplates">
 
-    <!--
-      NINA restyles CheckBox as a toggle switch and does not render CheckBox.Content.
-      Put each label in a TextBlock beside the CheckBox.
-    -->
-
     <ObjectDataProvider x:Key="CampaignModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
-        <ObjectDataProvider.MethodParameters>
-            <x:Type TypeName="camp:CampaignMode"/>
-        </ObjectDataProvider.MethodParameters>
+        <ObjectDataProvider.MethodParameters><x:Type TypeName="camp:CampaignMode"/></ObjectDataProvider.MethodParameters>
+    </ObjectDataProvider>
+    <ObjectDataProvider x:Key="PointingModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+        <ObjectDataProvider.MethodParameters><x:Type TypeName="camp:MountPointingMode"/></ObjectDataProvider.MethodParameters>
+    </ObjectDataProvider>
+    <ObjectDataProvider x:Key="TrackingModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+        <ObjectDataProvider.MethodParameters><x:Type TypeName="camp:TrackingMode"/></ObjectDataProvider.MethodParameters>
     </ObjectDataProvider>
 
     <DataTemplate DataType="{x:Type instr:RunSkyFlatCampaignInstruction}">
@@ -32,6 +31,41 @@
                 <TextBlock Text="Max minutes" Width="110" VerticalAlignment="Center"/>
                 <TextBox Width="80" Text="{Binding MaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
+
+            <Border Margin="0,6,0,2" Padding="6" BorderThickness="1" BorderBrush="#40808080">
+                <StackPanel>
+                    <TextBlock Text="Mount / sky-flat pointing" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Pointing" Width="110" VerticalAlignment="Center"/>
+                        <ComboBox Width="160" SelectedItem="{Binding PointingMode}" ItemsSource="{Binding Source={StaticResource PointingModeValues}}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Tracking" Width="110" VerticalAlignment="Center"/>
+                        <ComboBox Width="160" SelectedItem="{Binding Tracking}" ItemsSource="{Binding Source={StaticResource TrackingModeValues}}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Alt / Az (deg)" Width="110" VerticalAlignment="Center"/>
+                        <TextBox Width="65" Text="{Binding TargetAltitudeDegrees, UpdateSourceTrigger=PropertyChanged}" ToolTip="Used with AltAz pointing. Default 70°."/>
+                        <TextBox Width="65" Margin="6,0,0,0" Text="{Binding TargetAzimuthDegrees, UpdateSourceTrigger=PropertyChanged}" ToolTip="Used with AltAz pointing. Default 270°."/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Sun offset (deg)" Width="110" VerticalAlignment="Center"/>
+                        <TextBox Width="65" Text="{Binding SunOffsetDegrees, UpdateSourceTrigger=PropertyChanged}" ToolTip="Used only with OffsetFromSun pointing."/>
+                    </StackPanel>
+                    <WrapPanel Orientation="Horizontal" Margin="0,3,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                            <TextBlock Text="Restore at end" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox IsChecked="{Binding RestorePointingAtEnd}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                            <TextBlock Text="Dither flats" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox IsChecked="{Binding DitherBetweenFrames}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </WrapPanel>
+                    <TextBlock Text="Default: slew Alt 70° / Az 270°, tracking off. Select KeepCurrent if your NINA sequence already performs the slew." TextWrapping="Wrap" Opacity="0.7" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
             <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
                 <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
                     <TextBlock Text="Wait for sky" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -77,26 +111,11 @@
                 <TextBox Width="100" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
-                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
-                    <TextBlock Text="Incomplete" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <CheckBox IsChecked="{Binding MatchIncomplete}" VerticalAlignment="Center"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
-                    <TextBlock Text="Expired" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <CheckBox IsChecked="{Binding MatchExpired}" VerticalAlignment="Center"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
-                    <TextBlock Text="Invalidated" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <CheckBox IsChecked="{Binding MatchInvalidated}" VerticalAlignment="Center"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
-                    <TextBlock Text="Missing" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <CheckBox IsChecked="{Binding MatchMissing}" VerticalAlignment="Center"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,2,12,2">
-                    <TextBlock Text="Completed" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <CheckBox IsChecked="{Binding MatchCompleted}" VerticalAlignment="Center"/>
-                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2"><TextBlock Text="Incomplete" VerticalAlignment="Center" Margin="0,0,6,0"/><CheckBox IsChecked="{Binding MatchIncomplete}" VerticalAlignment="Center"/></StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2"><TextBlock Text="Expired" VerticalAlignment="Center" Margin="0,0,6,0"/><CheckBox IsChecked="{Binding MatchExpired}" VerticalAlignment="Center"/></StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2"><TextBlock Text="Invalidated" VerticalAlignment="Center" Margin="0,0,6,0"/><CheckBox IsChecked="{Binding MatchInvalidated}" VerticalAlignment="Center"/></StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2"><TextBlock Text="Missing" VerticalAlignment="Center" Margin="0,0,6,0"/><CheckBox IsChecked="{Binding MatchMissing}" VerticalAlignment="Center"/></StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,12,2"><TextBlock Text="Completed" VerticalAlignment="Center" Margin="0,0,6,0"/><CheckBox IsChecked="{Binding MatchCompleted}" VerticalAlignment="Center"/></StackPanel>
             </WrapPanel>
         </StackPanel>
     </DataTemplate>
@@ -107,5 +126,4 @@
             <ComboBox Width="140" SelectedItem="{Binding Mode}" ItemsSource="{Binding Source={StaticResource CampaignModeValues}}"/>
         </StackPanel>
     </DataTemplate>
-
 </ResourceDictionary>

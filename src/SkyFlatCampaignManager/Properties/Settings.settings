@@ -27,15 +27,14 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="DefaultTargetCount" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">30</Value>
+    </Setting>
+    <!-- Normalized target histogram level, 0-100% of full scale. Mid-scale is a robust default
+         for modern CMOS flats while retaining comfortable highlight headroom. -->
+    <Setting Name="DefaultTargetHistogramPercent" Type="System.Double" Scope="User">
       <Value Profile="(Default)">50</Value>
     </Setting>
-    <!-- Normalized target histogram level, 0-100% of full scale. Default (~38.15%) preserves the
-         legacy 25000/65535 ADU behaviour. Superseded the old raw DefaultTargetAdu setting. -->
-    <Setting Name="DefaultTargetHistogramPercent" Type="System.Double" Scope="User">
-      <Value Profile="(Default)">38.15</Value>
-    </Setting>
-    <!-- NINA-style tolerance as a percentage OF THE TARGET (not of full scale). Default (10%)
-         preserves the legacy 2500/25000 ADU behaviour. Superseded the old raw DefaultAduTolerance setting. -->
+    <!-- NINA-style tolerance as a percentage OF THE TARGET (not of full scale). -->
     <Setting Name="DefaultTargetTolerancePercent" Type="System.Double" Scope="User">
       <Value Profile="(Default)">10</Value>
     </Setting>
