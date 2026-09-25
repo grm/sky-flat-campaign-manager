@@ -61,8 +61,19 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         MaxWaitMinutes = 45;
         CampaignKey = "default";
         UseSqm = false;
-        PointingMode = MountPointingMode.KeepCurrent;
+
+        // Safe, useful out-of-box behaviour: the campaign owns the flat-field slew and stops
+        // tracking. Users who already position the mount elsewhere in their sequence can select
+        // KeepCurrent/KeepTracking instead. 70° altitude avoids the zenith singularity while
+        // staying high enough for a smooth twilight field; 270° is an explicit, editable default.
+        PointingMode = MountPointingMode.AltAz;
         Tracking = TrackingMode.DisableTracking;
+        TargetAltitudeDegrees = 70;
+        TargetAzimuthDegrees = 270;
+        SunOffsetDegrees = 40;
+        RestorePointingAtEnd = false;
+        DitherBetweenFrames = false;
+
         WhenNoFlatsRequired = WhenNoFlatsRequiredAction.SucceedImmediately;
         WhenNoFilterFeasible = WhenNoFilterFeasibleAction.PartialSuccess;
         OnFilterError = OnFilterErrorAction.ContinueNextFilter;
@@ -92,6 +103,9 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         Tracking = copyMe.Tracking;
         TargetAltitudeDegrees = copyMe.TargetAltitudeDegrees;
         TargetAzimuthDegrees = copyMe.TargetAzimuthDegrees;
+        SunOffsetDegrees = copyMe.SunOffsetDegrees;
+        RestorePointingAtEnd = copyMe.RestorePointingAtEnd;
+        DitherBetweenFrames = copyMe.DitherBetweenFrames;
         WhenNoFlatsRequired = copyMe.WhenNoFlatsRequired;
         WhenNoFilterFeasible = copyMe.WhenNoFilterFeasible;
         OnFilterError = copyMe.OnFilterError;
@@ -107,8 +121,11 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
     [JsonProperty] public bool UseSqm { get; set; }
     [JsonProperty] public MountPointingMode PointingMode { get; set; }
     [JsonProperty] public TrackingMode Tracking { get; set; }
-    [JsonProperty] public double TargetAltitudeDegrees { get; set; } = 80;
-    [JsonProperty] public double TargetAzimuthDegrees { get; set; }
+    [JsonProperty] public double TargetAltitudeDegrees { get; set; } = 70;
+    [JsonProperty] public double TargetAzimuthDegrees { get; set; } = 270;
+    [JsonProperty] public double SunOffsetDegrees { get; set; } = 40;
+    [JsonProperty] public bool RestorePointingAtEnd { get; set; }
+    [JsonProperty] public bool DitherBetweenFrames { get; set; }
     [JsonProperty] public WhenNoFlatsRequiredAction WhenNoFlatsRequired { get; set; }
     [JsonProperty] public WhenNoFilterFeasibleAction WhenNoFilterFeasible { get; set; }
     [JsonProperty] public OnFilterErrorAction OnFilterError { get; set; }
@@ -164,7 +181,10 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
                 Tracking = Tracking,
                 AltitudeDegrees = TargetAltitudeDegrees,
                 AzimuthDegrees = TargetAzimuthDegrees,
-                MinSunSeparationDegrees = Settings.Default.SunSafetySeparationDegrees
+                SunOffsetDegrees = SunOffsetDegrees,
+                MinSunSeparationDegrees = Settings.Default.SunSafetySeparationDegrees,
+                RestoreAtEnd = RestorePointingAtEnd,
+                DitherBetweenFrames = DitherBetweenFrames
             }
         };
 
@@ -190,7 +210,6 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         ProgressText = $"{result.FinalState}: {result.StopReason} (accepted={result.AcceptedThisSession}, rejected={result.RejectedThisSession})";
         RaisePropertyChanged(nameof(ProgressText));
 
-        // Partial success (window/timeout) completes without throwing — NINA sequencer success.
         if (result.FinalState == SessionState.Faulted)
         {
             throw new SequenceEntityFailedException(ProgressText);
