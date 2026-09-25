@@ -22,16 +22,17 @@ public static class PluginIdentity
     /// <summary>Legacy raw-ADU tolerance (fixed ADU count), retained only for backward-compatible migration.</summary>
     public const double DefaultAduTolerance = 2500d;
 
-    /// <summary>Full-scale ADU assumed only when migrating pre-existing TargetAdu/AduTolerance settings that predate normalized histogram fractions. Never assumed for live image validation — see <see cref="Acquisition.ImageStatisticsResult.MaxAdu"/>.</summary>
+    /// <summary>Full-scale ADU assumed only when migrating pre-existing TargetAdu/AduTolerance settings that predate normalized histogram fractions. Never assumed for live image validation.</summary>
     public const double LegacyMigrationMaxAdu = 65535d;
 
-    /// <summary>Normalized target histogram level (0.0–1.0 of full scale). Default preserves the legacy 25000/65535 behaviour (~38.15%).</summary>
-    public static readonly double DefaultTargetHistogramFraction = DefaultTargetAdu / LegacyMigrationMaxAdu;
+    /// <summary>Normalized target histogram level. Mid-scale is a robust default for modern CMOS flats and leaves ample headroom.</summary>
+    public const double DefaultTargetHistogramFraction = 0.50d;
 
-    /// <summary>NINA-style tolerance expressed as a fraction OF THE TARGET (not of full scale), e.g. 0.10 = ±10% of target. Default preserves the legacy 2500/25000 behaviour (10%).</summary>
-    public const double DefaultTargetToleranceFraction = DefaultAduTolerance / DefaultTargetAdu;
+    /// <summary>NINA-style tolerance expressed as a fraction OF THE TARGET (not of full scale).</summary>
+    public const double DefaultTargetToleranceFraction = 0.10d;
 
-    public const double DefaultMinExposureSeconds = 0.001d;
+    /// <summary>Conservative default: avoid ultra-short flats where shutter/driver timing and illumination stability can dominate.</summary>
+    public const double DefaultMinExposureSeconds = 0.5d;
     public const double DefaultMaxExposureSeconds = 30d;
     public const double DefaultRoiFraction = 0.7d;
     public const double DefaultMaxSaturationFraction = 0.01d;
