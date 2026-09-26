@@ -36,6 +36,9 @@ public static class SessionStopReasons
     /// <summary>Generic: window has passed for this session and cannot reopen. Prefer the directional reasons below when mode is known.</summary>
     public const string AstronomicalWindowClosed = "AstronomicalWindowClosed";
 
+    /// <summary>Evening: session started after the configured soft latest-start altitude. Skip flats to preserve science imaging time.</summary>
+    public const string EveningStartTooLate = "EveningStartTooLate";
+
     /// <summary>Evening: sun altitude fell below MinSunAltitudeDegrees. Sky is too dark for flats; waiting will not help — this is a normal closed twilight window, not a fault.</summary>
     public const string EveningSkyTooDark = "EveningSkyTooDark";
 
