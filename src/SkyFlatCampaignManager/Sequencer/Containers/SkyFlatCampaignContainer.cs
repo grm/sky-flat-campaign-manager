@@ -291,6 +291,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
     public async Task OnEventAsync(SkyFlatSessionEvent sessionEvent, CancellationToken cancellationToken)
     {
         EventContext.ApplyEvent(sessionEvent);
+        EventContext.EventMessage = FormatEventMessage(sessionEvent);
         RaiseContextProperties();
 
         var container = sessionEvent.Kind switch
@@ -308,7 +309,45 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         };
 
         if (container is not null)
+        {
+            // Ground Station's $INSTRUCTION_SET$ token resolves the direct parent container name.
+            // Publishing the contextual event text as this Name gives NINA 3.2 users dynamic SFCM
+            // values without taking a dependency on Ground Station or NINA 3.3's symbol broker.
+            container.Name = EventContext.EventMessage;
             await ExecuteEventContainer(container, _activeProgress, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private string FormatEventMessage(SkyFlatSessionEvent e)
+    {
+        var mode = e.Mode == CampaignMode.Automatic ? "Sky" : e.Mode.ToString();
+        var filter = e.CurrentFilter ?? EventContext.Filter;
+        var filterRemaining = 0;
+        if (!string.IsNullOrWhiteSpace(filter) && e.Campaign?.Filters.TryGetValue(filter, out var fp) == true)
+            filterRemaining = fp.Remaining;
+
+        return e.Kind switch
+        {
+            SkyFlatSessionEventKind.CampaignRequired =>
+                $"SFCM: {mode} sky flats starting — {e.Remaining} flat(s) remaining",
+            SkyFlatSessionEventKind.CampaignNotRequired =>
+                "SFCM: sky flats skipped — campaign is current (0 remaining)",
+            SkyFlatSessionEventKind.BeforeWait =>
+                $"SFCM: waiting for twilight{(string.IsNullOrWhiteSpace(filter) ? "" : $" — next {filter}")} — {e.Remaining} remaining",
+            SkyFlatSessionEventKind.AfterWait =>
+                $"SFCM: twilight ready — resuming{(string.IsNullOrWhiteSpace(filter) ? "" : $" with {filter}")} — {e.Remaining} remaining",
+            SkyFlatSessionEventKind.BeforeFilter =>
+                $"SFCM: starting {filter} — {filterRemaining} for this filter, {e.Remaining} total remaining",
+            SkyFlatSessionEventKind.AfterFilter =>
+                $"SFCM: {filter} complete — {e.Remaining} total remaining",
+            SkyFlatSessionEventKind.CampaignCompleted =>
+                $"SFCM: sky flat campaign complete — {e.Campaign?.TotalAccepted ?? EventContext.TotalAccepted} accepted, 0 remaining",
+            SkyFlatSessionEventKind.SessionIncomplete =>
+                $"SFCM: sky-flat session ended incomplete — {e.Remaining} remaining — {e.StopReason ?? "unknown reason"}",
+            SkyFlatSessionEventKind.Error =>
+                $"SFCM error: {e.StatusMessage ?? e.Exception?.Message ?? "unknown error"}",
+            _ => $"SFCM: {e.Kind}"
+        };
     }
 
     private async Task ExecuteEventContainer(
@@ -344,7 +383,10 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         RaisePropertyChanged(nameof(FlatsAccepted));
         RaisePropertyChanged(nameof(CurrentFilter));
         RaisePropertyChanged(nameof(LastStopReason));
+        RaisePropertyChanged(nameof(EventMessage));
     }
+
+    public string EventMessage => EventContext.EventMessage;
 
     public override object Clone() => new SkyFlatCampaignContainer(this);
 
