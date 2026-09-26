@@ -6,6 +6,18 @@ public interface ICameraAcquisitionService
 {
     bool IsConnected { get; }
     Task<CapturedFlatFrame> CaptureFlatAsync(FlatCaptureRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commits a previously captured frame to NINA's image-save pipeline. Implementations that do
+    /// not support deferred saving may simply report success. The real NINA adapter keeps the image
+    /// in memory until the session runner has validated it.
+    /// </summary>
+    Task<bool> SaveCapturedFlatAsync(CapturedFlatFrame frame, CancellationToken cancellationToken = default)
+        => Task.FromResult(true);
+
+    /// <summary>Releases a deferred capture without saving it.</summary>
+    Task DiscardCapturedFlatAsync(CapturedFlatFrame frame, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }
 
 public sealed class FlatCaptureRequest
@@ -32,6 +44,12 @@ public sealed class CapturedFlatFrame
     public int Offset { get; init; }
     public ImageStatisticsResult Statistics { get; init; } = new();
     public string? Error { get; init; }
+
+    /// <summary>
+    /// Opaque adapter-owned handle for a capture waiting to be either saved or discarded. Core code
+    /// never interprets it; this keeps NINA image objects out of the Core assembly.
+    /// </summary>
+    public string? DeferredSaveToken { get; init; }
 }
 
 public interface IFilterWheelService

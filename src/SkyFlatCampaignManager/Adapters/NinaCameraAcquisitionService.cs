@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using NINA.Core.Model;
 using NINA.Core.Model.Equipment;
 using NINA.Core.Utility;
@@ -14,7 +15,11 @@ using SkyFlatCampaignManager.Core.Equipment;
 
 namespace NINA.Plugin.SkyFlatCampaignManager.Adapters;
 
-/// <summary>Captures flats via the same NINA APIs used by TakeExposure.</summary>
+/// <summary>
+/// Captures flats via the same NINA APIs used by TakeExposure. Captures are measured first and are
+/// only submitted to NINA's save queue after the core runner accepts them. Rejected probes therefore
+/// neither create files nor enter normal NINA image history through the save pipeline.
+/// </summary>
 public sealed class NinaCameraAcquisitionService : ICameraAcquisitionService
 {
     private readonly IProfileService _profileService;
@@ -23,6 +28,7 @@ public sealed class NinaCameraAcquisitionService : ICameraAcquisitionService
     private readonly IImageSaveMediator _imageSaveMediator;
     private readonly IImageHistoryVM _imageHistoryVM;
     private readonly Action<string>? _log;
+    private readonly ConcurrentDictionary<string, Func<CancellationToken, Task<bool>>> _pendingSaves = new();
 
     public NinaCameraAcquisitionService(IProfileService profileService, ICameraMediator cameraMediator,
         IImagingMediator imagingMediator, IImageSaveMediator imageSaveMediator,
@@ -44,12 +50,6 @@ public sealed class NinaCameraAcquisitionService : ICameraAcquisitionService
         return bitDepth > 0 ? Math.Pow(2, bitDepth) - 1 : 65535d;
     }
 
-    /// <summary>
-    /// NINA/driver combinations can expose statistics in a wider container than the configured
-    /// sensor bit depth. Never allow a measured statistic to exceed the full scale used to
-    /// normalize it. If that happens, promote to the next common container ceiling (16-bit).
-    /// This keeps histogram fractions physically meaningful instead of producing values > 100%.
-    /// </summary>
     private double ResolveStatisticsMaxAdu(double observedMax)
     {
         var configured = ResolveConfiguredMaxAdu();
@@ -105,9 +105,6 @@ public sealed class NinaCameraAcquisitionService : ICameraAcquisitionService
                     StdDevAdu = ninaStats.StDev,
                     LowPercentileAdu = ninaStats.Min,
                     HighPercentileAdu = ninaStats.Max,
-                    // NINA's aggregate statistics expose Max but not a saturated-pixel count.
-                    // A single hot/star pixel must not be fabricated into a 2% saturation fraction.
-                    // Keep this unknown/zero until a real pixel-count ROI measurement is available.
                     SaturatedFraction = 0,
                     SamplePixelCount = 1,
                     MaxAdu = maxAdu
@@ -125,18 +122,22 @@ public sealed class NinaCameraAcquisitionService : ICameraAcquisitionService
             imageData.MetaData.GenericHeaders.Add(new DoubleMetaDataHeader("SFCMADU", stats.MedianAdu, "Measured median ADU"));
             imageData.MetaData.GenericHeaders.Add(new DoubleMetaDataHeader("SFCMHISF", stats.MedianFraction, "Measured median histogram level (0-1 fraction of full scale)"));
 
-            var saved = false;
+            string? deferredToken = null;
             if (request.SaveImage)
             {
-                await _imageSaveMediator.Enqueue(imageData, prepareTask, progress, cancellationToken).ConfigureAwait(false);
-                saved = true;
+                deferredToken = Guid.NewGuid().ToString("N");
+                _pendingSaves[deferredToken] = async ct =>
+                {
+                    await _imageSaveMediator.Enqueue(imageData, prepareTask, progress, ct).ConfigureAwait(false);
+                    return true;
+                };
             }
 
             return new CapturedFlatFrame
             {
-                Success = true, Saved = saved, FilterName = request.FilterName,
-                ExposureSeconds = request.ExposureSeconds, Gain = request.Gain, Offset = request.Offset,
-                Statistics = stats
+                Success = true, Saved = false, DeferredSaveToken = deferredToken,
+                FilterName = request.FilterName, ExposureSeconds = request.ExposureSeconds,
+                Gain = request.Gain, Offset = request.Offset, Statistics = stats
             };
         }
         catch (OperationCanceledException) { throw; }
@@ -152,6 +153,42 @@ public sealed class NinaCameraAcquisitionService : ICameraAcquisitionService
                 Statistics = new ImageStatisticsResult { IsCorrupted = true, CorruptionReason = ex.Message }
             };
         }
+    }
+
+    public async Task<bool> SaveCapturedFlatAsync(CapturedFlatFrame frame, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(frame.DeferredSaveToken))
+        {
+            return frame.Success;
+        }
+
+        if (!_pendingSaves.TryRemove(frame.DeferredSaveToken, out var save))
+        {
+            _log?.Invoke($"Deferred save token {frame.DeferredSaveToken} is no longer available.");
+            return false;
+        }
+
+        try
+        {
+            return await save(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _log?.Invoke($"Deferred flat save failed: {ex.Message}");
+            Logger.Error(ex);
+            return false;
+        }
+    }
+
+    public Task DiscardCapturedFlatAsync(CapturedFlatFrame frame, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!string.IsNullOrWhiteSpace(frame.DeferredSaveToken))
+        {
+            _pendingSaves.TryRemove(frame.DeferredSaveToken, out _);
+        }
+        return Task.CompletedTask;
     }
 }
 
