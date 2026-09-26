@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.ComponentModel.Composition;
 using Newtonsoft.Json;
 using NINA.Core.Model;
@@ -309,10 +308,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
 
         if (container is null) return;
 
-        var defaultMessage = FormatEventMessage(sessionEvent);
-        EventContext.EventMessage = string.IsNullOrWhiteSpace(container.MessageTemplate)
-            ? defaultMessage
-            : ResolveEventMessageTemplate(container.MessageTemplate, sessionEvent);
+        EventContext.EventMessage = SkyFlatEventMessageFormatter.ResolveTemplate(container.MessageTemplate, sessionEvent);
         RaiseContextProperties();
 
         // Ground Station's $INSTRUCTION_SET$ token resolves the direct parent container name.
@@ -320,67 +316,6 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         // values without taking a dependency on Ground Station or NINA 3.3's symbol broker.
         container.Name = EventContext.EventMessage;
         await ExecuteEventContainer(container, _activeProgress, cancellationToken).ConfigureAwait(false);
-    }
-
-    private string ResolveEventMessageTemplate(string template, SkyFlatSessionEvent e)
-    {
-        var culture = CultureInfo.InvariantCulture;
-        var filter = e.CurrentFilter ?? EventContext.Filter;
-        var filterProgress = !string.IsNullOrWhiteSpace(filter)
-            && e.Campaign?.Filters.TryGetValue(filter, out var fp) == true ? fp : null;
-
-        return template
-            .Replace("{campaign}", e.CampaignKey, StringComparison.OrdinalIgnoreCase)
-            .Replace("{mode}", e.Mode.ToString(), StringComparison.OrdinalIgnoreCase)
-            .Replace("{state}", e.Kind.ToString(), StringComparison.OrdinalIgnoreCase)
-            .Replace("{remaining}", e.Remaining.ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{required}", e.ConfiguredTarget.ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{accepted}", (e.Campaign?.TotalAccepted ?? EventContext.TotalAccepted).ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{sessionAccepted}", e.AcceptedThisSession.ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{sessionRejected}", e.RejectedThisSession.ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{filter}", filter ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("{filterRemaining}", (filterProgress?.Remaining ?? 0).ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{filterAccepted}", (filterProgress?.Accepted ?? 0).ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{filterRequired}", (filterProgress?.Target ?? 0).ToString(culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{exposure}", (e.ExposureSeconds ?? 0).ToString("0.###", culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{adu}", (e.MeasuredAdu ?? 0).ToString("0", culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{histogram}", ((e.MeasuredHistogramFraction ?? 0) * 100.0).ToString("0.0", culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{sunAltitude}", (e.SunAltitudeDegrees ?? double.NaN).ToString("0.00", culture), StringComparison.OrdinalIgnoreCase)
-            .Replace("{waitReason}", e.WaitReason ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("{stopReason}", e.StopReason ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("{duration}", e.Duration.ToString(@"hh\:mm\:ss", culture), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private string FormatEventMessage(SkyFlatSessionEvent e)
-    {
-        var mode = e.Mode == CampaignMode.Automatic ? "Sky" : e.Mode.ToString();
-        var filter = e.CurrentFilter ?? EventContext.Filter;
-        var filterRemaining = 0;
-        if (!string.IsNullOrWhiteSpace(filter) && e.Campaign?.Filters.TryGetValue(filter, out var fp) == true)
-            filterRemaining = fp.Remaining;
-
-        return e.Kind switch
-        {
-            SkyFlatSessionEventKind.CampaignRequired =>
-                $"SFCM: {mode} sky flats starting — {e.Remaining} flat(s) remaining",
-            SkyFlatSessionEventKind.CampaignNotRequired =>
-                "SFCM: sky flats skipped — campaign is current (0 remaining)",
-            SkyFlatSessionEventKind.BeforeWait =>
-                $"SFCM: waiting for twilight{(string.IsNullOrWhiteSpace(filter) ? "" : $" — next {filter}")} — {e.Remaining} remaining",
-            SkyFlatSessionEventKind.AfterWait =>
-                $"SFCM: twilight ready — resuming{(string.IsNullOrWhiteSpace(filter) ? "" : $" with {filter}")} — {e.Remaining} remaining",
-            SkyFlatSessionEventKind.BeforeFilter =>
-                $"SFCM: starting {filter} — {filterRemaining} for this filter, {e.Remaining} total remaining",
-            SkyFlatSessionEventKind.AfterFilter =>
-                $"SFCM: {filter} complete — {e.Remaining} total remaining",
-            SkyFlatSessionEventKind.CampaignCompleted =>
-                $"SFCM: sky flat campaign complete — {e.Campaign?.TotalAccepted ?? EventContext.TotalAccepted} accepted, 0 remaining",
-            SkyFlatSessionEventKind.SessionIncomplete =>
-                $"SFCM: sky-flat session ended incomplete — {e.Remaining} remaining — {e.StopReason ?? "unknown reason"}",
-            SkyFlatSessionEventKind.Error =>
-                $"SFCM error: {e.StatusMessage ?? e.Exception?.Message ?? "unknown error"}",
-            _ => $"SFCM: {e.Kind}"
-        };
     }
 
     private async Task ExecuteEventContainer(
