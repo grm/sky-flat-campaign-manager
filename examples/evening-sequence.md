@@ -14,7 +14,7 @@
    - **After Filter Complete**
    - **Campaign Completed**
    - **Session Incomplete**
-5. For Ground Station on NINA 3.2, set its message to `$$INSTRUCTION_SET$$`; SFCM resolves the configured event template with live campaign values.
+5. For Ground Station on NINA 3.2, set its message to `$&#36;&#36;INSTRUCTION_SET&#36;&#36;$`; SFCM resolves the configured event template with live campaign values.
 6. Continue with night imaging when the container returns.
 
 An outer `Sky Flat Campaign Required` condition or twilight loop is optional: the SFCM container performs its own skip decision and window management.
