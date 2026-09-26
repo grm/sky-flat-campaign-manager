@@ -65,9 +65,7 @@ public class SkyFlatEventMessageFormatterTests
     [Fact]
     public void Skip_default_is_unambiguous()
     {
-        var e = Sample(SkyFlatSessionEventKind.CampaignNotRequired) with { };
-        // SkyFlatSessionEvent is a class, so create the exact skip snapshot instead.
-        e = new SkyFlatSessionEvent
+        var e = new SkyFlatSessionEvent
         {
             Kind = SkyFlatSessionEventKind.CampaignNotRequired,
             CampaignKey = "default",
