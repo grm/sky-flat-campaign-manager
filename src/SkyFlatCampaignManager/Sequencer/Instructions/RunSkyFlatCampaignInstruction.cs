@@ -54,6 +54,9 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         MaxDurationMinutes = 90;
         AllowWaitForSky = true;
         MaxWaitMinutes = 45;
+        AdaptiveProbeWait = true;
+        MinProbeWaitSeconds = 5;
+        MaxProbeWaitSeconds = 30;
         CampaignKey = "default";
         UseSqm = false;
         PointingMode = MountPointingMode.AltAz;
@@ -64,8 +67,6 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         RestorePointingAtEnd = false;
         DitherBetweenFrames = false;
         WhenNoFlatsRequired = WhenNoFlatsRequiredAction.SucceedImmediately;
-        // Twilight is dynamic: a filter that is too dark in the morning (or too bright in the
-        // evening) can become feasible moments later. Waiting is the safe automation default.
         WhenNoFilterFeasible = WhenNoFilterFeasibleAction.Wait;
         OnFilterError = OnFilterErrorAction.ContinueNextFilter;
         SimulationMode = false;
@@ -82,6 +83,9 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         MaxDurationMinutes = copyMe.MaxDurationMinutes;
         AllowWaitForSky = copyMe.AllowWaitForSky;
         MaxWaitMinutes = copyMe.MaxWaitMinutes;
+        AdaptiveProbeWait = copyMe.AdaptiveProbeWait;
+        MinProbeWaitSeconds = copyMe.MinProbeWaitSeconds;
+        MaxProbeWaitSeconds = copyMe.MaxProbeWaitSeconds;
         CampaignKey = copyMe.CampaignKey;
         UseSqm = copyMe.UseSqm;
         PointingMode = copyMe.PointingMode;
@@ -102,6 +106,9 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
     [JsonProperty] public double MaxDurationMinutes { get; set; }
     [JsonProperty] public bool AllowWaitForSky { get; set; }
     [JsonProperty] public double MaxWaitMinutes { get; set; }
+    [JsonProperty] public bool AdaptiveProbeWait { get; set; }
+    [JsonProperty] public double MinProbeWaitSeconds { get; set; }
+    [JsonProperty] public double MaxProbeWaitSeconds { get; set; }
     [JsonProperty] public string CampaignKey { get; set; }
     [JsonProperty] public bool UseSqm { get; set; }
     [JsonProperty] public MountPointingMode PointingMode { get; set; }
@@ -144,6 +151,9 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
             MaxDurationMinutes = MaxDurationMinutes,
             AllowWaitForSky = AllowWaitForSky,
             MaxWaitMinutes = MaxWaitMinutes,
+            AdaptiveProbeWait = AdaptiveProbeWait,
+            MinProbeWaitSeconds = Math.Max(1, MinProbeWaitSeconds),
+            MaxProbeWaitSeconds = Math.Max(Math.Max(1, MinProbeWaitSeconds), MaxProbeWaitSeconds),
             WhenNoFlatsRequired = WhenNoFlatsRequired,
             WhenNoFilterFeasible = WhenNoFilterFeasible,
             OnFilterError = OnFilterError,
