@@ -11,14 +11,14 @@ public static class SkyFlatEventMessageFormatter
 {
     public static string FormatDefault(SkyFlatSessionEvent e)
     {
-        var mode = e.Mode == CampaignMode.Automatic ? "Sky" : e.Mode.ToString();
+        var modePrefix = e.Mode == CampaignMode.Automatic ? string.Empty : $"{e.Mode} ";
         var filter = e.CurrentFilter ?? string.Empty;
         var filterRemaining = FilterProgress(e)?.Remaining ?? 0;
 
         return e.Kind switch
         {
             SkyFlatSessionEventKind.CampaignRequired =>
-                $"SFCM: {mode} sky flats starting — {e.Remaining} flat(s) remaining",
+                $"SFCM: {modePrefix}sky flats starting — {e.Remaining} flat(s) remaining",
             SkyFlatSessionEventKind.CampaignNotRequired =>
                 "SFCM: sky flats skipped — campaign is current (0 remaining)",
             SkyFlatSessionEventKind.BeforeWait =>
