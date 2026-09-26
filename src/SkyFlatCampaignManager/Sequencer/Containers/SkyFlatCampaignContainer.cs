@@ -36,7 +36,6 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
     private readonly IApplicationStatusMediator _applicationStatusMediator;
 
     private IProgress<ApplicationStatus>? _activeProgress;
-    private CancellationToken _activeToken;
 
     [JsonProperty] public SkyFlatEventContainer CampaignRequiredContainer { get; set; }
     [JsonProperty] public SkyFlatEventContainer CampaignNotRequiredContainer { get; set; }
@@ -72,7 +71,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         _applicationStatusMediator = applicationStatusMediator;
 
         Mode = CampaignMode.Automatic;
-        Strategy = FilterOrderStrategyKind.Adaptive;
+        FilterStrategy = FilterOrderStrategyKind.Adaptive;
         MaxDurationMinutes = 90;
         AllowWaitForSky = true;
         MaxWaitMinutes = 45;
@@ -110,7 +109,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
     {
         CopyMetaData(copyMe);
         Mode = copyMe.Mode;
-        Strategy = copyMe.Strategy;
+        FilterStrategy = copyMe.FilterStrategy;
         MaxDurationMinutes = copyMe.MaxDurationMinutes;
         AllowWaitForSky = copyMe.AllowWaitForSky;
         MaxWaitMinutes = copyMe.MaxWaitMinutes;
@@ -142,7 +141,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
     }
 
     [JsonProperty] public CampaignMode Mode { get; set; }
-    [JsonProperty] public FilterOrderStrategyKind Strategy { get; set; }
+    [JsonProperty] public FilterOrderStrategyKind FilterStrategy { get; set; }
     [JsonProperty] public double MaxDurationMinutes { get; set; }
     [JsonProperty] public bool AllowWaitForSky { get; set; }
     [JsonProperty] public double MaxWaitMinutes { get; set; }
@@ -219,7 +218,6 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
             UseSqm, SimulationMode, m => Logger.Info($"[{PluginIdentity.ShortName}] {m}"));
 
         _activeProgress = progress;
-        _activeToken = token;
         EventContext.CampaignKey = string.IsNullOrWhiteSpace(CampaignKey) ? "default" : CampaignKey;
         EventContext.Mode = Mode.ToString();
         SkyFlatEventContextAccessor.Set(EventContext);
@@ -231,7 +229,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
                 CampaignKey = EventContext.CampaignKey,
                 ProfileId = _profileService.ActiveProfile.Id.ToString(),
                 Mode = Mode,
-                Strategy = Strategy,
+                Strategy = FilterStrategy,
                 MaxDurationMinutes = MaxDurationMinutes,
                 AllowWaitForSky = AllowWaitForSky,
                 MaxWaitMinutes = MaxWaitMinutes,
