@@ -1,3 +1,4 @@
+using System.IO;
 using FluentAssertions;
 using SkyFlatCampaignManager.Core;
 using NINA.Plugin.SkyFlatCampaignManager.Sequencer.Containers;
