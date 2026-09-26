@@ -37,12 +37,12 @@
                             </StackPanel>
                         </WrapPanel>
                         <TextBlock Margin="0,3,0,0" Opacity="0.75">
-                            <Run Text="Required: "/><Run Text="{Binding FlatsRequired}"/>
-                            <Run Text="  Accepted: "/><Run Text="{Binding FlatsAccepted}"/>
-                            <Run Text="  Remaining: "/><Run Text="{Binding FlatsRemaining}"/>
-                            <Run Text="  Filter: "/><Run Text="{Binding CurrentFilter}"/>
+                            <Run Text="Required: "/><Run Text="{Binding FlatsRequired, Mode=OneWay}"/>
+                            <Run Text="  Accepted: "/><Run Text="{Binding FlatsAccepted, Mode=OneWay}"/>
+                            <Run Text="  Remaining: "/><Run Text="{Binding FlatsRemaining, Mode=OneWay}"/>
+                            <Run Text="  Filter: "/><Run Text="{Binding CurrentFilter, Mode=OneWay}"/>
                         </TextBlock>
-                        <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Opacity="0.85" Margin="0,3,0,0"/>
+                        <TextBlock Text="{Binding ProgressText, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85" Margin="0,3,0,0"/>
                     </StackPanel>
                 </nina:SequenceBlockView.SequenceItemContent>
             </nina:SequenceBlockView>
