@@ -43,11 +43,48 @@ public sealed class SkyFlatEventContext
         TotalAccepted = campaign.TotalAccepted;
         TotalRemaining = campaign.TotalRemaining;
         TotalRequired = campaign.TotalTarget;
+        ApplyFilter(campaign);
+    }
+
+    internal void ApplyEvent(SkyFlatSessionEvent e)
+    {
+        CampaignKey = e.CampaignKey;
+        Mode = e.Mode.ToString();
+        State = e.Kind.ToString();
+        StopReason = e.StopReason ?? string.Empty;
+        WaitReason = e.WaitReason ?? string.Empty;
+        Filter = e.CurrentFilter ?? string.Empty;
+        TotalRequired = e.ConfiguredTarget;
+        TotalRemaining = e.Remaining;
+        AcceptedThisSession = e.AcceptedThisSession;
+        RejectedThisSession = e.RejectedThisSession;
+        ExposureSeconds = e.ExposureSeconds ?? 0;
+        MedianAdu = e.MeasuredAdu ?? 0;
+        HistogramPercent = (e.MeasuredHistogramFraction ?? 0) * 100.0;
+        SunAltitudeDegrees = e.SunAltitudeDegrees ?? double.NaN;
+        Duration = e.Duration;
+
+        if (e.Campaign is not null)
+        {
+            TotalAccepted = e.Campaign.TotalAccepted;
+            if (TotalRequired <= 0) TotalRequired = e.Campaign.TotalTarget;
+            ApplyFilter(e.Campaign);
+        }
+    }
+
+    private void ApplyFilter(CampaignState campaign)
+    {
         if (!string.IsNullOrWhiteSpace(Filter) && campaign.Filters.TryGetValue(Filter, out var fp))
         {
             FilterRequired = fp.Target;
             FilterAccepted = fp.Accepted;
             FilterRemaining = fp.Remaining;
+        }
+        else
+        {
+            FilterRequired = 0;
+            FilterAccepted = 0;
+            FilterRemaining = 0;
         }
     }
 }
