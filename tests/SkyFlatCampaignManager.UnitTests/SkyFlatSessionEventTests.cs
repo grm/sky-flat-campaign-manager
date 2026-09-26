@@ -69,6 +69,26 @@ public class SkyFlatSessionEventTests
             => inner.DiscardCapturedFlatAsync(frame, cancellationToken);
     }
 
+
+    private sealed class CountingMount : IMountPositioningService
+    {
+        public bool IsConnected => true;
+        public int EnsureCalls { get; private set; }
+        public int RestoreCalls { get; private set; }
+
+        public Task EnsureSafePointingAsync(MountPointingRequest request, CancellationToken cancellationToken = default)
+        {
+            EnsureCalls++;
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreIfRequestedAsync(CancellationToken cancellationToken = default)
+        {
+            RestoreCalls++;
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class GateSink : ISkyFlatSessionEventSink
     {
         public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -99,12 +119,13 @@ public class SkyFlatSessionEventTests
         ICameraAcquisitionService camera,
         IFilterWheelService wheel,
         ISunAltitudeProvider sun,
-        IClock clock)
+        IClock clock,
+        IMountPositioningService? mount = null)
         => new(
             campaigns,
             camera,
             wheel,
-            new NoOpMountPositioningService(),
+            mount ?? new NoOpMountPositioningService(),
             new ProportionalFlatExposureEstimator(),
             new DefaultFlatFrameValidator(),
             new AstronomicalWindowService(),
@@ -330,5 +351,126 @@ public class SkyFlatSessionEventTests
         ended.Remaining.Should().Be(1);
         ended.StopReason.Should().Be(SessionStopReasons.MorningSkyTooBright);
     }
+
+    [Fact]
+    public async Task Late_evening_start_cutoff_skips_before_campaign_hook_mount_or_capture()
+    {
+        var clock = new FakeClock();
+        var fs = new MemoryFs();
+        var campaigns = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        var filters = OneFlatFilter();
+        var sim = new SkySimulatorOptions();
+        var sink = new RecordingSink();
+        var camera = new CountingCamera(new SimulatedCameraAcquisitionService(sim, seed: 6));
+        var mount = new CountingMount();
+        var runner = CreateRunner(
+            campaigns,
+            camera,
+            new SimulatedFilterWheelService(new[] { "L" }, sim),
+            new ApproximateSunAltitudeProvider(overrideCalc: _ => -10.5),
+            clock,
+            mount);
+
+        var result = await runner.RunAsync(new SkyFlatSessionRequest
+        {
+            CampaignKey = "late-evening",
+            ProfileId = "p1",
+            Mode = CampaignMode.Evening,
+            EventSink = sink,
+            SkipLateEveningStart = true,
+            LatestEveningStartSunAltitudeDegrees = -10,
+            Options = new CampaignOptions
+            {
+                EveningWindow = new AstronomicalWindowOptions { MinSunAltitudeDegrees = -12, MaxSunAltitudeDegrees = -1 },
+                Filters = filters
+            },
+            Filters = filters
+        }, null, CancellationToken.None);
+
+        result.FinalState.Should().Be(SessionState.StoppedByWindow);
+        result.StopReason.Should().Be(SessionStopReasons.EveningStartTooLate);
+        camera.CaptureCalls.Should().Be(0);
+        mount.EnsureCalls.Should().Be(0, "late-start preflight must run before any mount movement");
+        sink.Events.Select(e => e.Kind).Should().Equal(SkyFlatSessionEventKind.SessionIncomplete);
+        sink.Events.Single().Remaining.Should().Be(1);
+        sink.Events.Single().StopReason.Should().Be(SessionStopReasons.EveningStartTooLate);
+    }
+
+    [Fact]
+    public async Task Late_evening_start_cutoff_can_be_disabled()
+    {
+        var clock = new FakeClock();
+        var fs = new MemoryFs();
+        var campaigns = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        var filters = OneFlatFilter();
+        var sim = new SkySimulatorOptions { Darkening = false };
+        var sink = new RecordingSink();
+        var runner = CreateRunner(
+            campaigns,
+            new SimulatedCameraAcquisitionService(sim, seed: 7),
+            new SimulatedFilterWheelService(new[] { "L" }, sim),
+            new ApproximateSunAltitudeProvider(overrideCalc: _ => -10.5),
+            clock);
+
+        var result = await runner.RunAsync(new SkyFlatSessionRequest
+        {
+            CampaignKey = "late-evening-disabled",
+            ProfileId = "p1",
+            Mode = CampaignMode.Evening,
+            EventSink = sink,
+            SkipLateEveningStart = false,
+            LatestEveningStartSunAltitudeDegrees = -10,
+            MaxDurationMinutes = 10,
+            Options = new CampaignOptions
+            {
+                DryRun = true,
+                EveningWindow = new AstronomicalWindowOptions { MinSunAltitudeDegrees = -12, MaxSunAltitudeDegrees = -1 },
+                Filters = filters
+            },
+            Filters = filters
+        }, null, CancellationToken.None);
+
+        result.StopReason.Should().NotBe(SessionStopReasons.EveningStartTooLate);
+        sink.Events.Should().Contain(e => e.Kind == SkyFlatSessionEventKind.CampaignRequired);
+    }
+
+    [Fact]
+    public async Task Morning_near_end_of_window_has_no_soft_start_cutoff()
+    {
+        var clock = new FakeClock();
+        var fs = new MemoryFs();
+        var campaigns = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        var filters = OneFlatFilter();
+        var sim = new SkySimulatorOptions { Darkening = false };
+        var sink = new RecordingSink();
+        var runner = CreateRunner(
+            campaigns,
+            new SimulatedCameraAcquisitionService(sim, seed: 8),
+            new SimulatedFilterWheelService(new[] { "L" }, sim),
+            new ApproximateSunAltitudeProvider(overrideCalc: _ => -1.5),
+            clock);
+
+        var result = await runner.RunAsync(new SkyFlatSessionRequest
+        {
+            CampaignKey = "morning-near-end",
+            ProfileId = "p1",
+            Mode = CampaignMode.Morning,
+            EventSink = sink,
+            SkipLateEveningStart = true,
+            LatestEveningStartSunAltitudeDegrees = -10,
+            MaxDurationMinutes = 10,
+            Options = new CampaignOptions
+            {
+                DryRun = true,
+                MorningWindow = new AstronomicalWindowOptions { MinSunAltitudeDegrees = -12, MaxSunAltitudeDegrees = -1 },
+                Filters = filters
+            },
+            Filters = filters
+        }, null, CancellationToken.None);
+
+        result.StopReason.Should().NotBe(SessionStopReasons.EveningStartTooLate);
+        sink.Events.Should().Contain(e => e.Kind == SkyFlatSessionEventKind.CampaignRequired);
+    }
+
 
 }
