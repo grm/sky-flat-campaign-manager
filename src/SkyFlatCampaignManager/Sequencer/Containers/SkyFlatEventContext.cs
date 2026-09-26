@@ -2,11 +2,6 @@ using SkyFlatCampaignManager.Core.Campaigns;
 
 namespace NINA.Plugin.SkyFlatCampaignManager.Sequencer.Containers;
 
-/// <summary>
-/// Snapshot exposed by the active Sky Flat Campaign Container to instructions placed in its event
-/// containers. The values are deliberately simple CLR types so notification/script instructions can
-/// consume them without taking a dependency on SFCM core models.
-/// </summary>
 public sealed class SkyFlatEventContext
 {
     public string CampaignKey { get; internal set; } = "default";
@@ -47,20 +42,16 @@ public sealed class SkyFlatEventContext
         if (campaign is null) return;
         TotalAccepted = campaign.TotalAccepted;
         TotalRemaining = campaign.TotalRemaining;
-        TotalRequired = campaign.Filters.Values.Sum(f => f.TargetCount);
+        TotalRequired = campaign.TotalTarget;
         if (!string.IsNullOrWhiteSpace(Filter) && campaign.Filters.TryGetValue(Filter, out var fp))
         {
-            FilterRequired = fp.TargetCount;
-            FilterAccepted = fp.AcceptedCount;
+            FilterRequired = fp.Target;
+            FilterAccepted = fp.Accepted;
             FilterRemaining = fp.Remaining;
         }
     }
 }
 
-/// <summary>
-/// Process-local accessor used by child instructions and future NINA-expression bindings. A campaign
-/// container owns the lifetime: Current is set while it executes and cleared during teardown.
-/// </summary>
 public static class SkyFlatEventContextAccessor
 {
     private static readonly object Gate = new();
