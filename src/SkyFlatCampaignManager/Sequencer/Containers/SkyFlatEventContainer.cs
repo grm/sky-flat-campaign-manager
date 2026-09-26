@@ -32,6 +32,14 @@ public sealed class SkyFlatEventContainer : SequenceContainer, ISequenceContaine
     [JsonProperty]
     public SkyFlatEventType EventType { get; set; }
 
+    /// <summary>
+    /// Optional user-defined text resolved by the owning campaign container immediately before the
+    /// event runs. The resolved text becomes this container's Name, so Ground Station can send it
+    /// using its $INSTRUCTION_SET$ token without SFCM depending on Ground Station.
+    /// </summary>
+    [JsonProperty]
+    public string MessageTemplate { get; set; } = string.Empty;
+
     [ImportingConstructor]
     public SkyFlatEventContainer() : base(new SkyFlatEventExecutionStrategy()) { }
 
@@ -53,8 +61,9 @@ public sealed class SkyFlatEventContainer : SequenceContainer, ISequenceContaine
 
     public override object Clone()
     {
-        var clone = new SkyFlatEventContainer(EventType, Parent)
+        var clone = new SkyFlatEventContainer(EventType, Parent!)
         {
+            MessageTemplate = MessageTemplate,
             Items = new ObservableCollection<ISequenceItem>(Items.Select(i => (ISequenceItem)i.Clone()))
         };
         foreach (var item in clone.Items) item.AttachNewParent(clone);
