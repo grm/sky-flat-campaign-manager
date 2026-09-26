@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Sky Flat Campaign Container** for NINA Advanced Sequencer, patterned after Target Scheduler's blocking custom event containers. It evaluates the campaign itself and can cleanly skip when no flats are required.
+- Blocking lifecycle hooks: **Campaign Required**, **Campaign Not Required / Skip**, **Before/After Wait**, **Before/After Filter**, **Campaign Completed**, **Session Incomplete**, and **Error**.
+- Continuous twilight waits are treated as one wait episode, so adaptive 5–30 s feasibility probes do not spam Before/After Wait hooks.
+- Per-event message templates with live placeholders such as `{remaining}`, `{required}`, `{filter}`, `{filterRemaining}`, `{exposure}`, `{adu}`, `{histogram}`, `{sunAltitude}`, `{stopReason}`, and `{duration}`.
+- Ground Station/NINA 3.2 bridge: the resolved event message is exposed as the event container name, allowing a Ground Station child instruction to send `$$INSTRUCTION_SET$$` without a compile-time dependency on Ground Station.
+- Unit coverage for skip/required/completion event ordering, wait-episode coalescing, blocking hook execution, and event-message formatting.
+
 ## 0.0.5 — 2026-08-03
 
 ### Fixed
