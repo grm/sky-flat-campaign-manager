@@ -207,7 +207,10 @@ public sealed class SkyFlatSessionRunner
                 return Result(SessionState.Completed, requirement.Reason, requirement.Campaign, 0, 0);
             }
 
-            await EmitAsync(SkyFlatSessionEventKind.CampaignRequired, request.Mode, requirement.Campaign,
+            var requiredCampaign = requirement.IsIncomplete && !requirement.IsExpired && !requirement.IsInvalidated
+                ? requirement.Campaign
+                : null;
+            await EmitAsync(SkyFlatSessionEventKind.CampaignRequired, request.Mode, requiredCampaign,
                 stopReason: requirement.Reason, message: $"{requirementRemaining} flats required",
                 remainingOverride: requirementRemaining).ConfigureAwait(false);
 
