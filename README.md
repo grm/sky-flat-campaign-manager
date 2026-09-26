@@ -101,7 +101,7 @@ Each event has an optional message template. Available placeholders include `{re
 `{duration}`. Leave the template blank for SFCM's contextual default.
 
 For **Ground Station on NINA 3.2**, drop a Ground Station notification instruction into an event
-container and set its message to `$INSTRUCTION_SET$`. Immediately before the event runs, SFCM
+container and set its message to `&#36;&#36;INSTRUCTION_SET&#36;&#36;`. Immediately before the event runs, SFCM
 sets the event-container name to the fully resolved message, so Ground Station can send live SFCM
 values without SFCM depending on Ground Station.
 
