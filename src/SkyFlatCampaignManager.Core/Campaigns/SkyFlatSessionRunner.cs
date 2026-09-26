@@ -21,6 +21,8 @@ public sealed class SkyFlatSessionRequest
     public bool AdaptiveProbeWait { get; init; } = true;
     public double MinProbeWaitSeconds { get; init; } = 5;
     public double MaxProbeWaitSeconds { get; init; } = 30;
+    public bool SkipLateEveningStart { get; init; } = true;
+    public double LatestEveningStartSunAltitudeDegrees { get; init; } = -10;
     public WhenNoFlatsRequiredAction WhenNoFlatsRequired { get; init; } = WhenNoFlatsRequiredAction.SucceedImmediately;
     public WhenNoFilterFeasibleAction WhenNoFilterFeasible { get; init; } = WhenNoFilterFeasibleAction.Wait;
     public OnFilterErrorAction OnFilterError { get; init; } = OnFilterErrorAction.ContinueNextFilter;
@@ -207,12 +209,58 @@ public sealed class SkyFlatSessionRunner
                 return Result(SessionState.Completed, requirement.Reason, requirement.Campaign, 0, 0);
             }
 
+            // Preflight the current twilight BEFORE announcing Campaign Required or moving the mount.
+            // If the roof opens after the useful evening start cutoff, return cleanly so the sequence
+            // can continue to autofocus/science imaging without wasting time on a doomed flat run.
+            var preflightSunAlt = _sun.GetSunAltitudeDegrees(_clock.UtcNow);
+            var preflightMode = request.Mode == CampaignMode.Automatic
+                ? _windows.ResolveMode(CampaignMode.Automatic, preflightSunAlt, previousAltitude)
+                : request.Mode;
+            var preflightWindow = preflightMode == CampaignMode.Morning
+                ? request.Options.MorningWindow
+                : request.Options.EveningWindow;
+            var preflightWindowState = _windows.Evaluate(preflightMode, preflightSunAlt, preflightWindow);
+
+            if (preflightWindowState == AstronomicalWindowState.TooLate)
+            {
+                var reason = preflightMode == CampaignMode.Evening
+                    ? SessionStopReasons.EveningSkyTooDark
+                    : SessionStopReasons.MorningSkyTooBright;
+                var message = preflightMode == CampaignMode.Evening
+                    ? $"Sky-flat session skipped: Sun altitude {preflightSunAlt:F1}° is below the evening window minimum ({preflightWindow.MinSunAltitudeDegrees:F1}°)."
+                    : $"Sky-flat session skipped: Sun altitude {preflightSunAlt:F1}° is above the morning window maximum ({preflightWindow.MaxSunAltitudeDegrees:F1}°).";
+                Report(SessionState.StoppedByWindow, message, stop: reason);
+                await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, preflightMode, requirement.Campaign,
+                    stopReason: reason, message: message, sunAltitude: preflightSunAlt,
+                    remainingOverride: requirementRemaining).ConfigureAwait(false);
+                return Result(SessionState.StoppedByWindow, reason, requirement.Campaign, 0, 0);
+            }
+
+            if (preflightMode == CampaignMode.Evening
+                && request.SkipLateEveningStart
+                && preflightWindowState == AstronomicalWindowState.Open)
+            {
+                var latestStart = Math.Clamp(
+                    request.LatestEveningStartSunAltitudeDegrees,
+                    preflightWindow.MinSunAltitudeDegrees,
+                    preflightWindow.MaxSunAltitudeDegrees);
+                if (preflightSunAlt < latestStart)
+                {
+                    var message = $"Sky-flat session skipped: evening twilight is already at {preflightSunAlt:F1}°; configured latest start is {latestStart:F1}°.";
+                    Report(SessionState.StoppedByWindow, message, stop: SessionStopReasons.EveningStartTooLate);
+                    await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, preflightMode, requirement.Campaign,
+                        stopReason: SessionStopReasons.EveningStartTooLate, message: message,
+                        sunAltitude: preflightSunAlt, remainingOverride: requirementRemaining).ConfigureAwait(false);
+                    return Result(SessionState.StoppedByWindow, SessionStopReasons.EveningStartTooLate, requirement.Campaign, 0, 0);
+                }
+            }
+
             var requiredCampaign = requirement.IsIncomplete && !requirement.IsExpired && !requirement.IsInvalidated
                 ? requirement.Campaign
                 : null;
-            await EmitAsync(SkyFlatSessionEventKind.CampaignRequired, request.Mode, requiredCampaign,
+            await EmitAsync(SkyFlatSessionEventKind.CampaignRequired, preflightMode, requiredCampaign,
                 stopReason: requirement.Reason, message: $"{requirementRemaining} flats required",
-                remainingOverride: requirementRemaining).ConfigureAwait(false);
+                sunAltitude: preflightSunAlt, remainingOverride: requirementRemaining).ConfigureAwait(false);
 
             var campaign = await _campaigns.GetOrCreateAsync(request.CampaignKey, request.ProfileId, request.Filters, request.Options, cancellationToken).ConfigureAwait(false);
             p.Accepted = campaign.TotalAccepted; p.Remaining = campaign.TotalRemaining;
