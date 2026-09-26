@@ -293,4 +293,42 @@ public class SkyFlatSessionEventTests
         camera.CaptureCalls.Should().BeGreaterThan(0);
     }
 
+    [Fact]
+    public async Task Closed_twilight_emits_session_incomplete_with_remaining_count_and_reason()
+    {
+        var clock = new FakeClock();
+        var fs = new MemoryFs();
+        var campaigns = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        var filters = OneFlatFilter();
+        var sim = new SkySimulatorOptions();
+        var sink = new RecordingSink();
+        var runner = CreateRunner(
+            campaigns,
+            new SimulatedCameraAcquisitionService(sim, seed: 5),
+            new SimulatedFilterWheelService(new[] { "L" }, sim),
+            new ApproximateSunAltitudeProvider(overrideCalc: _ => 0),
+            clock);
+
+        var result = await runner.RunAsync(new SkyFlatSessionRequest
+        {
+            CampaignKey = "incomplete-window",
+            ProfileId = "p1",
+            Mode = CampaignMode.Morning,
+            EventSink = sink,
+            AllowWaitForSky = true,
+            Options = new CampaignOptions
+            {
+                DryRun = true,
+                MorningWindow = new AstronomicalWindowOptions { MinSunAltitudeDegrees = -12, MaxSunAltitudeDegrees = -1 },
+                Filters = filters
+            },
+            Filters = filters
+        }, null, CancellationToken.None);
+
+        result.FinalState.Should().Be(SessionState.StoppedByWindow);
+        var ended = sink.Events.Single(e => e.Kind == SkyFlatSessionEventKind.SessionIncomplete);
+        ended.Remaining.Should().Be(1);
+        ended.StopReason.Should().Be(SessionStopReasons.MorningSkyTooBright);
+    }
+
 }
