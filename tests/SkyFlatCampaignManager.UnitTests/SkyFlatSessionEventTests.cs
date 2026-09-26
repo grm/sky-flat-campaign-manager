@@ -184,8 +184,9 @@ public class SkyFlatSessionEventTests
         var sim = new SkySimulatorOptions();
         var sink = new RecordingSink();
 
-        // First call seeds previousAltitude, second loop call is TooEarly, then the window opens.
-        var sun = new ScriptedSun(0, 0, -6, -6, -6);
+        // First call seeds previousAltitude, second loop call is TooEarly (morning sky still
+        // darker than the -12° lower bound), then the window opens.
+        var sun = new ScriptedSun(-13, -13, -6, -6, -6);
         var runner = CreateRunner(
             campaigns,
             new SimulatedCameraAcquisitionService(sim, seed: 3),
