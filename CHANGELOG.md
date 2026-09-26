@@ -1,14 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.0.6 — 2026-09-26
 
 ### Added
 - **Sky Flat Campaign Container** for NINA Advanced Sequencer, patterned after Target Scheduler's blocking custom event containers. It evaluates the campaign itself and can cleanly skip when no flats are required.
 - Blocking lifecycle hooks: **Campaign Required**, **Campaign Not Required / Skip**, **Before/After Wait**, **Before/After Filter**, **Campaign Completed**, **Session Incomplete**, and **Error**.
 - Continuous twilight waits are treated as one wait episode, so adaptive 5–30 s feasibility probes do not spam Before/After Wait hooks.
 - Per-event message templates with live placeholders such as `{remaining}`, `{required}`, `{filter}`, `{filterRemaining}`, `{exposure}`, `{adu}`, `{histogram}`, `{sunAltitude}`, `{stopReason}`, and `{duration}`.
-- Ground Station/NINA 3.2 bridge: the resolved event message is exposed as the event container name, allowing a Ground Station child instruction to send `$&#36;&#36;INSTRUCTION_SET&#36;&#36;$` without a compile-time dependency on Ground Station.
-- Unit coverage for skip/required/completion event ordering, wait-episode coalescing, blocking hook execution, and event-message formatting.
+- Ground Station/NINA 3.2 bridge: the resolved event message is exposed as the event container name, allowing a Ground Station child instruction to send `$INSTRUCTION_SET$` without a compile-time dependency on Ground Station.
+- Unit coverage for skip/required/completion event ordering, wait-episode coalescing, blocking hook execution, event-message formatting, and incomplete-session behavior.
+- **Sky Flat Flats Remaining** sequencer condition, exposing whether the campaign still needs flats so an outer sequence can skip the block when appropriate.
+
+### Changed
+- Morning/evening twilight handling is now adaptive: when the next ordered filter is not yet exposure-feasible, SFCM waits and retries rather than prematurely ending the campaign.
+- Adaptive retry cadence defaults to 5–30 seconds and is configurable under **Advanced**.
+- Rejected exposure-search probes are no longer saved to disk or NINA image history; only accepted flats are committed to the NINA save pipeline.
+- Filter selection uses the exposure-feasibility frontier to avoid pointless probes on filters that cannot yet work while preserving the morning/evening ordering logic.
 
 ## 0.0.5 — 2026-08-03
 

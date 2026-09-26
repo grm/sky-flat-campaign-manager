@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+    branches: ["release/*"]
   workflow_dispatch:
     inputs:
       version:
@@ -27,6 +28,8 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             V="${GITHUB_REF_NAME#v}"
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            V="${GITHUB_REF_NAME#release/}"
           else
             V="${{ inputs.version }}"
           fi
@@ -62,6 +65,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: main
           name: Sky Flat Campaign Manager v${{ steps.ver.outputs.version }}
           generate_release_notes: true
           files: |
