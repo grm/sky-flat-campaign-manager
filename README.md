@@ -13,7 +13,8 @@ Progress is persisted after every accepted flat so a crash, power loss, or close
 
 ## Features
 
-- Advanced Sequencer instruction **Run Sky Flat Campaign**
+- Advanced Sequencer **Sky Flat Campaign Container** with blocking custom event hooks
+- Backward-compatible **Run Sky Flat Campaign** instruction
 - Conditions: **Sky Flat Campaign Required**, **Sky Flat Window Available**
 - **Reset / Invalidate** campaign instruction
 - **Diagnostic** instruction (camera ADU, filter, SQM, paths, sun altitude)
@@ -82,15 +83,42 @@ The sun altitude is classified relative to the resolved Morning/Evening mode as 
 
 ## Advanced Sequencer examples
 
+The preferred setup is now a single **Sky Flat Campaign Container**. It evaluates campaign
+state itself: if all flats are current it fires **Campaign Not Required / Skip** and returns;
+otherwise it fires **Campaign Required** with the live number of missing flats and starts the
+campaign. An outer IF/loop is therefore optional.
+
+Custom event containers are blocking and run sequentially before SFCM continues:
+
+- Campaign Required / Campaign Not Required (Skip)
+- Before Wait / After Wait (one pair per continuous twilight wait episode, not per 5–30 s probe)
+- Before Filter / After Filter Complete
+- Campaign Completed / Session Incomplete / Error
+
+Each event has an optional message template. Available placeholders include `{remaining}`,
+`{required}`, `{accepted}`, `{filter}`, `{filterRemaining}`, `{mode}`, `{exposure}`,
+`{adu}`, `{histogram}`, `{sunAltitude}`, `{waitReason}`, `{stopReason}`, and
+`{duration}`. Leave the template blank for SFCM's contextual default.
+
+For **Ground Station on NINA 3.2**, drop a Ground Station notification instruction into an event
+container and set its message to `$INSTRUCTION_SET$`. Immediately before the event runs, SFCM
+sets the event-container name to the fully resolved message, so Ground Station can send live SFCM
+values without SFCM depending on Ground Station.
+
 ### Evening
 
-1. Wait for sun altitude / dusk (built-in NINA utility) — optional
-2. Condition loop: **Sky Flat Campaign Required**
-3. **Run Sky Flat Campaign** — Mode=`Evening`, Allow wait=true, Use SQM=false
+1. Add **Sky Flat Campaign Container**
+2. Mode=`Evening`, Wait for sky=true
+3. Optionally add Ground Station messages to the event containers
+4. Continue with night imaging when the container returns (complete or partial success)
 
 ### Morning
 
-1. **Run Sky Flat Campaign** — Mode=`Morning`
+1. Add **Sky Flat Campaign Container**
+2. Mode=`Morning`, Wait for sky=true
+3. SFCM may start early and waits adaptively for the usable twilight window
+
+The older **Run Sky Flat Campaign** instruction remains available for existing sequences.
 
 ### Multi-day
 
