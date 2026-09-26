@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Configurable **Skip late evening start** guard (default ON) with **Latest evening start** Sun altitude defaulting to **-10°**. If an Evening sky-flat session begins after that soft cutoff, SFCM skips the run before any mount movement and returns control to the NINA sequence.
+- The soft cutoff is evaluated only when the session starts; a flat campaign already in progress may continue until the hard astronomical window closes.
+- Morning sessions intentionally have no soft start cutoff and continue using any remaining valid morning twilight until the hard window limit.
+
+### Changed
+- Hard `TooLate` twilight checks now run during preflight before `Campaign Required` and before mount positioning, so late roof openings do not cause unnecessary slews or misleading start notifications.
+
 ## 0.0.8 — 2026-09-26
 
 ### Fixed
