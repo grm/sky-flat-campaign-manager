@@ -77,4 +77,20 @@ public class SkyFlatEventMessageFormatterTests
         SkyFlatEventMessageFormatter.FormatDefault(e)
             .Should().Be("SFCM: sky flats skipped — campaign is current (0 remaining)");
     }
+    [Fact]
+    public void Automatic_mode_default_does_not_repeat_sky_word()
+    {
+        var e = new SkyFlatSessionEvent
+        {
+            Kind = SkyFlatSessionEventKind.CampaignRequired,
+            CampaignKey = "default",
+            Mode = CampaignMode.Automatic,
+            ConfiguredTarget = 210,
+            Remaining = 140
+        };
+
+        SkyFlatEventMessageFormatter.FormatDefault(e)
+            .Should().Be("SFCM: sky flats starting — 140 flat(s) remaining");
+    }
+
 }
