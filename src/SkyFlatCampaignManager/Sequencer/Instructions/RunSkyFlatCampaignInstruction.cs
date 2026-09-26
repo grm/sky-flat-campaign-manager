@@ -34,15 +34,10 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
     private readonly IApplicationStatusMediator _applicationStatusMediator;
 
     [ImportingConstructor]
-    public RunSkyFlatCampaignInstruction(
-        IProfileService profileService,
-        ICameraMediator cameraMediator,
-        IFilterWheelMediator filterWheelMediator,
-        ITelescopeMediator telescopeMediator,
-        IImagingMediator imagingMediator,
-        IImageSaveMediator imageSaveMediator,
-        IImageHistoryVM imageHistoryVM,
-        IWeatherDataMediator weatherDataMediator,
+    public RunSkyFlatCampaignInstruction(IProfileService profileService, ICameraMediator cameraMediator,
+        IFilterWheelMediator filterWheelMediator, ITelescopeMediator telescopeMediator,
+        IImagingMediator imagingMediator, IImageSaveMediator imageSaveMediator,
+        IImageHistoryVM imageHistoryVM, IWeatherDataMediator weatherDataMediator,
         IApplicationStatusMediator applicationStatusMediator)
     {
         _profileService = profileService;
@@ -61,11 +56,6 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         MaxWaitMinutes = 45;
         CampaignKey = "default";
         UseSqm = false;
-
-        // Safe, useful out-of-box behaviour: the campaign owns the flat-field slew and stops
-        // tracking. Users who already position the mount elsewhere in their sequence can select
-        // KeepCurrent/KeepTracking instead. 70° altitude avoids the zenith singularity while
-        // staying high enough for a smooth twilight field; 270° is an explicit, editable default.
         PointingMode = MountPointingMode.AltAz;
         Tracking = TrackingMode.DisableTracking;
         TargetAltitudeDegrees = 70;
@@ -73,23 +63,18 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         SunOffsetDegrees = 40;
         RestorePointingAtEnd = false;
         DitherBetweenFrames = false;
-
         WhenNoFlatsRequired = WhenNoFlatsRequiredAction.SucceedImmediately;
-        WhenNoFilterFeasible = WhenNoFilterFeasibleAction.PartialSuccess;
+        // Twilight is dynamic: a filter that is too dark in the morning (or too bright in the
+        // evening) can become feasible moments later. Waiting is the safe automation default.
+        WhenNoFilterFeasible = WhenNoFilterFeasibleAction.Wait;
         OnFilterError = OnFilterErrorAction.ContinueNextFilter;
         SimulationMode = false;
     }
 
     private RunSkyFlatCampaignInstruction(RunSkyFlatCampaignInstruction copyMe) : this(
-        copyMe._profileService,
-        copyMe._cameraMediator,
-        copyMe._filterWheelMediator,
-        copyMe._telescopeMediator,
-        copyMe._imagingMediator,
-        copyMe._imageSaveMediator,
-        copyMe._imageHistoryVM,
-        copyMe._weatherDataMediator,
-        copyMe._applicationStatusMediator)
+        copyMe._profileService, copyMe._cameraMediator, copyMe._filterWheelMediator,
+        copyMe._telescopeMediator, copyMe._imagingMediator, copyMe._imageSaveMediator,
+        copyMe._imageHistoryVM, copyMe._weatherDataMediator, copyMe._applicationStatusMediator)
     {
         CopyMetaData(copyMe);
         Mode = copyMe.Mode;
@@ -146,19 +131,9 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         options.SimulationMode = SimulationMode;
         options.DryRun = options.DryRun || SimulationMode;
         var filters = PluginServiceFactory.CreateFilterSettings(_profileService);
-
-        var runner = PluginServiceFactory.CreateRunner(
-            _profileService,
-            _cameraMediator,
-            _filterWheelMediator,
-            _telescopeMediator,
-            _imagingMediator,
-            _imageSaveMediator,
-            _imageHistoryVM,
-            _weatherDataMediator,
-            UseSqm,
-            SimulationMode,
-            m => Logger.Info($"[{PluginIdentity.ShortName}] {m}"));
+        var runner = PluginServiceFactory.CreateRunner(_profileService, _cameraMediator, _filterWheelMediator,
+            _telescopeMediator, _imagingMediator, _imageSaveMediator, _imageHistoryVM, _weatherDataMediator,
+            UseSqm, SimulationMode, m => Logger.Info($"[{PluginIdentity.ShortName}] {m}"));
 
         var request = new SkyFlatSessionRequest
         {
@@ -190,30 +165,17 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
 
         var progressAdapter = new Progress<SkyFlatSessionProgress>(p =>
         {
-            var levelText = p.MeasuredHistogramFraction is { } frac
-                ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU"
-                : "n/a";
+            var levelText = p.MeasuredHistogramFraction is { } frac ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU" : "n/a";
             ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
             RaisePropertyChanged(nameof(ProgressText));
-            progress?.Report(new ApplicationStatus
-            {
-                Status = $"[{PluginIdentity.ShortName}] {ProgressText}"
-            });
-            _applicationStatusMediator.StatusUpdate(new ApplicationStatus
-            {
-                Source = PluginIdentity.ShortName,
-                Status = ProgressText
-            });
+            progress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {ProgressText}" });
+            _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = ProgressText });
         });
 
         var result = await runner.RunAsync(request, progressAdapter, token).ConfigureAwait(false);
         ProgressText = $"{result.FinalState}: {result.StopReason} (accepted={result.AcceptedThisSession}, rejected={result.RejectedThisSession})";
         RaisePropertyChanged(nameof(ProgressText));
-
-        if (result.FinalState == SessionState.Faulted)
-        {
-            throw new SequenceEntityFailedException(ProgressText);
-        }
+        if (result.FinalState == SessionState.Faulted) throw new SequenceEntityFailedException(ProgressText);
     }
 
     public override object Clone() => new RunSkyFlatCampaignInstruction(this);
