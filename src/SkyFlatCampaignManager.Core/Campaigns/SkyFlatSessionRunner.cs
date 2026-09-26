@@ -212,7 +212,10 @@ public sealed class SkyFlatSessionRunner
             // Preflight the current twilight BEFORE announcing Campaign Required or moving the mount.
             // If the roof opens after the useful evening start cutoff, return cleanly so the sequence
             // can continue to autofocus/science imaging without wasting time on a doomed flat run.
-            var preflightSunAlt = _sun.GetSunAltitudeDegrees(_clock.UtcNow);
+            // Reuse the altitude sampled at session start. Besides avoiding a redundant hardware/
+            // ephemeris read, this preserves the runner's existing cadence for scripted/simulated Sun
+            // providers and makes "session start altitude" unambiguous.
+            var preflightSunAlt = previousAltitude;
             var preflightMode = request.Mode == CampaignMode.Automatic
                 ? _windows.ResolveMode(CampaignMode.Automatic, preflightSunAlt, previousAltitude)
                 : request.Mode;
