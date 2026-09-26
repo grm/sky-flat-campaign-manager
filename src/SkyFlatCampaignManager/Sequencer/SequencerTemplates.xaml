@@ -449,7 +449,7 @@
                     </StackPanel>
                 </Border>
             </Expander>
-            <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Opacity="0.85" Margin="0,4,0,0"/>
+            <TextBlock Text="{Binding ProgressText, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85" Margin="0,4,0,0"/>
         </StackPanel>
     </DataTemplate>
 
