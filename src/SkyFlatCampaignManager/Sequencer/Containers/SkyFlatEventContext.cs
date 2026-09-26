@@ -9,6 +9,7 @@ public sealed class SkyFlatEventContext
     public string State { get; internal set; } = string.Empty;
     public string StopReason { get; internal set; } = string.Empty;
     public string WaitReason { get; internal set; } = string.Empty;
+    public string EventMessage { get; internal set; } = string.Empty;
     public string Filter { get; internal set; } = string.Empty;
     public int TotalRequired { get; internal set; }
     public int TotalAccepted { get; internal set; }
