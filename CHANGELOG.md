@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.9 — 2026-09-26
 
 ### Added
 - Configurable **Skip late evening start** guard (default ON) with **Latest evening start** Sun altitude defaulting to **-10°**. If an Evening sky-flat session begins after that soft cutoff, SFCM skips the run before any mount movement and returns control to the NINA sequence.
