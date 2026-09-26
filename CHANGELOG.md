@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.7 — 2026-09-26
+
+### Fixed
+- **Sky Flat Campaign Container editor crash / drag-and-drop.** Custom lifecycle event areas now follow Target Scheduler's proven NINA pattern: the drop surface binds directly to the nested event container, uses `DetachingExpander`, and keeps `DropIntoBehavior` on the actual event-container DataContext.
+- Nested event containers are no longer re-parented during every outer-container `AfterParentChanged()`; their parent is reset immediately before execution instead, avoiding editor-time structural side effects when adding, moving, or loading the container.
+- Container cloning now mirrors NINA/Target Scheduler semantics more closely: inherited items/conditions/triggers and nested hook instructions are cloned and reattached to the correct owner.
+- Instructions inside lifecycle event containers are explicitly initialized, improving compatibility with ordinary NINA instructions and Ground Station notifications.
+
 ## 0.0.6 — 2026-09-26
 
 ### Added
