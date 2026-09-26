@@ -43,12 +43,12 @@ public sealed class SkyFlatEventContainer : SequenceContainer, ISequenceContaine
     [ImportingConstructor]
     public SkyFlatEventContainer() : base(new SkyFlatEventExecutionStrategy()) { }
 
-    public SkyFlatEventContainer(SkyFlatEventType eventType, ISequenceContainer parent)
+    public SkyFlatEventContainer(SkyFlatEventType eventType, ISequenceContainer? parent)
         : base(new SkyFlatEventExecutionStrategy())
     {
         EventType = eventType;
         Name = FriendlyName(eventType);
-        AttachNewParent(parent);
+        if (parent is not null) AttachNewParent(parent);
     }
 
     public void ResetParent(ISequenceContainer parent) => AttachNewParent(parent);
@@ -61,7 +61,7 @@ public sealed class SkyFlatEventContainer : SequenceContainer, ISequenceContaine
 
     public override object Clone()
     {
-        var clone = new SkyFlatEventContainer(EventType, Parent!)
+        var clone = new SkyFlatEventContainer(EventType, Parent)
         {
             MessageTemplate = MessageTemplate,
             Items = new ObservableCollection<ISequenceItem>(Items.Select(i => (ISequenceItem)i.Clone()))
