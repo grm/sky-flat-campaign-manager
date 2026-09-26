@@ -31,6 +31,8 @@ public static class SkyFlatEventMessageFormatter
                 $"SFCM: {filter} complete — {e.Remaining} total remaining",
             SkyFlatSessionEventKind.CampaignCompleted =>
                 $"SFCM: sky flat campaign complete — {e.Campaign?.TotalAccepted ?? 0} accepted, 0 remaining",
+            SkyFlatSessionEventKind.SessionIncomplete when e.StopReason == SessionStopReasons.EveningStartTooLate =>
+                $"SFCM: evening sky flats skipped — twilight too advanced — {e.Remaining} remaining",
             SkyFlatSessionEventKind.SessionIncomplete =>
                 $"SFCM: sky-flat session ended incomplete — {e.Remaining} remaining — {e.StopReason ?? "unknown reason"}",
             SkyFlatSessionEventKind.Error =>
