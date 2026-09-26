@@ -51,6 +51,37 @@ public class SkyFlatSessionEventTests
         }
     }
 
+
+    private sealed class CountingCamera : ICameraAcquisitionService
+    {
+        private readonly ICameraAcquisitionService inner;
+        public int CaptureCalls { get; private set; }
+        public CountingCamera(ICameraAcquisitionService inner) => this.inner = inner;
+        public bool IsConnected => inner.IsConnected;
+        public Task<CapturedFlatFrame> CaptureFlatAsync(FlatCaptureRequest request, CancellationToken cancellationToken = default)
+        {
+            CaptureCalls++;
+            return inner.CaptureFlatAsync(request, cancellationToken);
+        }
+        public Task<bool> SaveCapturedFlatAsync(CapturedFlatFrame frame, CancellationToken cancellationToken = default)
+            => inner.SaveCapturedFlatAsync(frame, cancellationToken);
+        public Task DiscardCapturedFlatAsync(CapturedFlatFrame frame, CancellationToken cancellationToken = default)
+            => inner.DiscardCapturedFlatAsync(frame, cancellationToken);
+    }
+
+    private sealed class GateSink : ISkyFlatSessionEventSink
+    {
+        public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task OnEventAsync(SkyFlatSessionEvent sessionEvent, CancellationToken cancellationToken)
+        {
+            if (sessionEvent.Kind != SkyFlatSessionEventKind.CampaignRequired) return;
+            Entered.TrySetResult(true);
+            await Release.Task.WaitAsync(cancellationToken);
+        }
+    }
+
     private sealed class ScriptedSun : ISunAltitudeProvider
     {
         private readonly double[] values;
@@ -218,4 +249,48 @@ public class SkyFlatSessionEventTests
         sink.Events.FindIndex(e => e.Kind == SkyFlatSessionEventKind.BeforeWait)
             .Should().BeLessThan(sink.Events.FindIndex(e => e.Kind == SkyFlatSessionEventKind.AfterWait));
     }
+
+    [Fact]
+    public async Task Campaign_hook_is_awaited_before_any_flat_capture()
+    {
+        var clock = new FakeClock();
+        var fs = new MemoryFs();
+        var campaigns = new CampaignService(new JsonCampaignRepository(fs, "/state"), clock);
+        var filters = OneFlatFilter();
+        var sim = new SkySimulatorOptions();
+        var camera = new CountingCamera(new SimulatedCameraAcquisitionService(sim, seed: 4));
+        var sink = new GateSink();
+        var runner = CreateRunner(
+            campaigns,
+            camera,
+            new SimulatedFilterWheelService(new[] { "L" }, sim),
+            new ApproximateSunAltitudeProvider(overrideCalc: _ => -6),
+            clock);
+
+        var runTask = runner.RunAsync(new SkyFlatSessionRequest
+        {
+            CampaignKey = "blocking-hook",
+            ProfileId = "p1",
+            Mode = CampaignMode.Morning,
+            EventSink = sink,
+            MaxDurationMinutes = 10,
+            Options = new CampaignOptions
+            {
+                DryRun = true,
+                MorningWindow = new AstronomicalWindowOptions { MinSunAltitudeDegrees = -12, MaxSunAltitudeDegrees = -1 },
+                Filters = filters
+            },
+            Filters = filters
+        }, null, CancellationToken.None);
+
+        await sink.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        camera.CaptureCalls.Should().Be(0, "Campaign Required hooks must finish before acquisition starts");
+
+        sink.Release.TrySetResult(true);
+        var result = await runTask;
+
+        result.Campaign!.IsComplete.Should().BeTrue();
+        camera.CaptureCalls.Should().BeGreaterThan(0);
+    }
+
 }
