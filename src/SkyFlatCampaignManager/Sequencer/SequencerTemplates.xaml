@@ -5,11 +5,122 @@
     xmlns:instr="clr-namespace:NINA.Plugin.SkyFlatCampaignManager.Sequencer.Instructions"
     xmlns:cond="clr-namespace:NINA.Plugin.SkyFlatCampaignManager.Sequencer.Conditions"
     xmlns:camp="clr-namespace:SkyFlatCampaignManager.Core.Campaigns;assembly=SkyFlatCampaignManager.Core"
+    xmlns:cont="clr-namespace:NINA.Plugin.SkyFlatCampaignManager.Sequencer.Containers"
+    xmlns:behaviors="clr-namespace:NINA.Sequencer.Behaviors;assembly=NINA.Sequencer"
+    xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:nina="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer"
     x:Class="NINA.Plugin.SkyFlatCampaignManager.Sequencer.SequencerTemplates">
 
     <ObjectDataProvider x:Key="CampaignModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}"><ObjectDataProvider.MethodParameters><x:Type TypeName="camp:CampaignMode"/></ObjectDataProvider.MethodParameters></ObjectDataProvider>
     <ObjectDataProvider x:Key="PointingModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}"><ObjectDataProvider.MethodParameters><x:Type TypeName="camp:MountPointingMode"/></ObjectDataProvider.MethodParameters></ObjectDataProvider>
     <ObjectDataProvider x:Key="TrackingModeValues" MethodName="GetValues" ObjectType="{x:Type sys:Enum}"><ObjectDataProvider.MethodParameters><x:Type TypeName="camp:TrackingMode"/></ObjectDataProvider.MethodParameters></ObjectDataProvider>
+
+
+    <DataTemplate DataType="{x:Type cont:SkyFlatEventContainer}">
+        <Border MinHeight="45" Margin="0,4,0,4" Padding="4" BorderBrush="#40808080" BorderThickness="1">
+            <Grid Background="{DynamicResource BackgroundBrush}">
+                <ItemsControl MinHeight="40" ItemsSource="{Binding Items}" />
+                <i:Interaction.Behaviors>
+                    <behaviors:DragOverBehavior DragAboveSize="0" DragBelowSize="0" />
+                    <behaviors:DropIntoBehavior
+                        AllowedDragDropTypesString="NINA.Sequencer.Container.ISequenceContainer;NINA.Sequencer.SequenceItem.ISequenceItem;NINA.Sequencer.TemplatedSequenceContainer"
+                        OnDropCommand="DropIntoCommand" />
+                </i:Interaction.Behaviors>
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type cont:SkyFlatCampaignContainer}">
+        <StackPanel Orientation="Vertical">
+            <nina:SequenceBlockView DataContext="{Binding}">
+                <nina:SequenceBlockView.SequenceItemContent>
+                    <StackPanel Orientation="Vertical" Margin="4">
+                        <WrapPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                                <TextBlock Text="Mode" Width="72" VerticalAlignment="Center"/>
+                                <ComboBox Width="130" SelectedItem="{Binding Mode}" ItemsSource="{Binding Source={StaticResource CampaignModeValues}}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                                <TextBlock Text="Campaign" Width="72" VerticalAlignment="Center"/>
+                                <TextBox Width="120" Text="{Binding CampaignKey, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                                <TextBlock Text="Wait for sky" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <CheckBox IsChecked="{Binding AllowWaitForSky}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </WrapPanel>
+                        <TextBlock Margin="0,3,0,0" Opacity="0.75">
+                            <Run Text="Required: "/><Run Text="{Binding FlatsRequired}"/>
+                            <Run Text="  Accepted: "/><Run Text="{Binding FlatsAccepted}"/>
+                            <Run Text="  Remaining: "/><Run Text="{Binding FlatsRemaining}"/>
+                            <Run Text="  Filter: "/><Run Text="{Binding CurrentFilter}"/>
+                        </TextBlock>
+                        <TextBlock Text="{Binding ProgressText}" TextWrapping="Wrap" Opacity="0.85" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </nina:SequenceBlockView.SequenceItemContent>
+            </nina:SequenceBlockView>
+
+            <Expander Header="Campaign settings" IsExpanded="False" Margin="4,4,4,0">
+                <Border Padding="6" BorderThickness="1" BorderBrush="#40808080">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Max minutes" Width="150" VerticalAlignment="Center"/><TextBox Width="70" Text="{Binding MaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Pointing" Width="150" VerticalAlignment="Center"/><ComboBox Width="160" SelectedItem="{Binding PointingMode}" ItemsSource="{Binding Source={StaticResource PointingModeValues}}"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Tracking" Width="150" VerticalAlignment="Center"/><ComboBox Width="160" SelectedItem="{Binding Tracking}" ItemsSource="{Binding Source={StaticResource TrackingModeValues}}"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Alt / Az (deg)" Width="150" VerticalAlignment="Center"/><TextBox Width="65" Text="{Binding TargetAltitudeDegrees, UpdateSourceTrigger=PropertyChanged}"/><TextBox Width="65" Margin="6,0,0,0" Text="{Binding TargetAzimuthDegrees, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Sun offset (deg)" Width="150" VerticalAlignment="Center"/><TextBox Width="65" Text="{Binding SunOffsetDegrees, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                        <WrapPanel Margin="0,3,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2"><TextBlock Text="Restore at end" Margin="0,0,8,0"/><CheckBox IsChecked="{Binding RestorePointingAtEnd}"/></StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2"><TextBlock Text="Dither flats" Margin="0,0,8,0"/><CheckBox IsChecked="{Binding DitherBetweenFrames}"/></StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2"><TextBlock Text="Use SQM" Margin="0,0,8,0"/><CheckBox IsChecked="{Binding UseSqm}"/></StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,16,2"><TextBlock Text="Simulate" Margin="0,0,8,0"/><CheckBox IsChecked="{Binding SimulationMode}"/></StackPanel>
+                        </WrapPanel>
+                        <Expander Header="Advanced" IsExpanded="False" Margin="0,5,0,0">
+                            <StackPanel Margin="6">
+                                <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Adaptive probe wait" Width="150"/><CheckBox IsChecked="{Binding AdaptiveProbeWait}"/></StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Probe wait min (s)" Width="150"/><TextBox Width="65" Text="{Binding MinProbeWaitSeconds, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Probe wait max (s)" Width="150"/><TextBox Width="65" Text="{Binding MaxProbeWaitSeconds, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Wait failsafe (min)" Width="150"/><TextBox Width="65" Text="{Binding MaxWaitMinutes, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+            </Expander>
+
+            <Expander Header="Custom Event Containers" IsExpanded="True" Margin="4,5,4,0">
+                <StackPanel>
+                    <TextBlock Margin="4,2,4,5" TextWrapping="Wrap" Opacity="0.7"
+                               Text="Events are blocking: instructions placed here finish before SFCM continues. Use Ground Station, scripts, or any NINA instruction."/>
+                    <Expander Header="Campaign Required — runs once when flats are needed">
+                        <ContentControl Content="{Binding CampaignRequiredContainer}"/>
+                    </Expander>
+                    <Expander Header="Campaign Not Required / Skip — runs once when everything is current">
+                        <ContentControl Content="{Binding CampaignNotRequiredContainer}"/>
+                    </Expander>
+                    <Expander Header="Before Wait — once per continuous twilight wait episode">
+                        <ContentControl Content="{Binding BeforeWaitContainer}"/>
+                    </Expander>
+                    <Expander Header="After Wait — once when acquisition resumes">
+                        <ContentControl Content="{Binding AfterWaitContainer}"/>
+                    </Expander>
+                    <Expander Header="Before Filter — when a new filter block starts">
+                        <ContentControl Content="{Binding BeforeFilterContainer}"/>
+                    </Expander>
+                    <Expander Header="After Filter Complete — when that filter reaches its target">
+                        <ContentControl Content="{Binding AfterFilterContainer}"/>
+                    </Expander>
+                    <Expander Header="Campaign Completed — all required flats acquired">
+                        <ContentControl Content="{Binding CampaignCompletedContainer}"/>
+                    </Expander>
+                    <Expander Header="Session Incomplete — window/timeout ended with flats remaining">
+                        <ContentControl Content="{Binding SessionIncompleteContainer}"/>
+                    </Expander>
+                    <Expander Header="Error — fatal campaign error">
+                        <ContentControl Content="{Binding ErrorContainer}"/>
+                    </Expander>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </DataTemplate>
 
     <DataTemplate DataType="{x:Type instr:RunSkyFlatCampaignInstruction}">
         <StackPanel Orientation="Vertical" Margin="4">
