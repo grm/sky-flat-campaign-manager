@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.ComponentModel.Composition;
 using Newtonsoft.Json;
 using NINA.Core.Model;
@@ -291,8 +292,6 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
     public async Task OnEventAsync(SkyFlatSessionEvent sessionEvent, CancellationToken cancellationToken)
     {
         EventContext.ApplyEvent(sessionEvent);
-        EventContext.EventMessage = FormatEventMessage(sessionEvent);
-        RaiseContextProperties();
 
         var container = sessionEvent.Kind switch
         {
@@ -308,14 +307,48 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
             _ => null
         };
 
-        if (container is not null)
-        {
-            // Ground Station's $INSTRUCTION_SET$ token resolves the direct parent container name.
-            // Publishing the contextual event text as this Name gives NINA 3.2 users dynamic SFCM
-            // values without taking a dependency on Ground Station or NINA 3.3's symbol broker.
-            container.Name = EventContext.EventMessage;
-            await ExecuteEventContainer(container, _activeProgress, cancellationToken).ConfigureAwait(false);
-        }
+        if (container is null) return;
+
+        var defaultMessage = FormatEventMessage(sessionEvent);
+        EventContext.EventMessage = string.IsNullOrWhiteSpace(container.MessageTemplate)
+            ? defaultMessage
+            : ResolveEventMessageTemplate(container.MessageTemplate, sessionEvent);
+        RaiseContextProperties();
+
+        // Ground Station's $INSTRUCTION_SET$ token resolves the direct parent container name.
+        // Publishing the contextual event text as this Name gives NINA 3.2 users dynamic SFCM
+        // values without taking a dependency on Ground Station or NINA 3.3's symbol broker.
+        container.Name = EventContext.EventMessage;
+        await ExecuteEventContainer(container, _activeProgress, cancellationToken).ConfigureAwait(false);
+    }
+
+    private string ResolveEventMessageTemplate(string template, SkyFlatSessionEvent e)
+    {
+        var culture = CultureInfo.InvariantCulture;
+        var filter = e.CurrentFilter ?? EventContext.Filter;
+        var filterProgress = !string.IsNullOrWhiteSpace(filter)
+            && e.Campaign?.Filters.TryGetValue(filter, out var fp) == true ? fp : null;
+
+        return template
+            .Replace("{campaign}", e.CampaignKey, StringComparison.OrdinalIgnoreCase)
+            .Replace("{mode}", e.Mode.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{state}", e.Kind.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{remaining}", e.Remaining.ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{required}", e.ConfiguredTarget.ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{accepted}", (e.Campaign?.TotalAccepted ?? EventContext.TotalAccepted).ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{sessionAccepted}", e.AcceptedThisSession.ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{sessionRejected}", e.RejectedThisSession.ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{filter}", filter ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("{filterRemaining}", (filterProgress?.Remaining ?? 0).ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{filterAccepted}", (filterProgress?.Accepted ?? 0).ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{filterRequired}", (filterProgress?.Target ?? 0).ToString(culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{exposure}", (e.ExposureSeconds ?? 0).ToString("0.###", culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{adu}", (e.MeasuredAdu ?? 0).ToString("0", culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{histogram}", ((e.MeasuredHistogramFraction ?? 0) * 100.0).ToString("0.0", culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{sunAltitude}", (e.SunAltitudeDegrees ?? double.NaN).ToString("0.00", culture), StringComparison.OrdinalIgnoreCase)
+            .Replace("{waitReason}", e.WaitReason ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("{stopReason}", e.StopReason ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("{duration}", e.Duration.ToString(@"hh\:mm\:ss", culture), StringComparison.OrdinalIgnoreCase);
     }
 
     private string FormatEventMessage(SkyFlatSessionEvent e)
