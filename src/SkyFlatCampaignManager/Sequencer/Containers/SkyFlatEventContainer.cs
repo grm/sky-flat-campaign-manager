@@ -53,22 +53,34 @@ public sealed class SkyFlatEventContainer : SequenceContainer, ISequenceContaine
 
     public void ResetParent(ISequenceContainer parent) => AttachNewParent(parent);
 
+    public override void Initialize()
+    {
+        foreach (var item in Items)
+        {
+            item.Initialize();
+        }
+        base.Initialize();
+    }
+
     public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token)
     {
         if (Items.Count == 0) return;
         await base.Execute(progress, token).ConfigureAwait(false);
     }
 
-    public override object Clone()
+    public SkyFlatEventContainer CloneDetached()
     {
-        var clone = new SkyFlatEventContainer(EventType, Parent)
+        var clone = new SkyFlatEventContainer(EventType, null)
         {
+            Name = Name,
             MessageTemplate = MessageTemplate,
             Items = new ObservableCollection<ISequenceItem>(Items.Select(i => (ISequenceItem)i.Clone()))
         };
         foreach (var item in clone.Items) item.AttachNewParent(clone);
         return clone;
     }
+
+    public override object Clone() => CloneDetached();
 
     public static string FriendlyName(SkyFlatEventType type) => type switch
     {
