@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel.Composition;
 using Newtonsoft.Json;
 using NINA.Core.Model;
@@ -7,7 +8,9 @@ using NINA.Plugin.SkyFlatCampaignManager.Properties;
 using NINA.Plugin.SkyFlatCampaignManager.Services;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.Container;
+using NINA.Sequencer.Conditions;
 using NINA.Sequencer.SequenceItem;
+using NINA.Sequencer.Trigger;
 using NINA.WPF.Base.Interfaces.Mediator;
 using NINA.WPF.Base.Interfaces.ViewModel;
 using SkyFlatCampaignManager.Core;
@@ -138,6 +141,17 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         CampaignCompletedContainer = CloneEvent(copyMe.CampaignCompletedContainer);
         SessionIncompleteContainer = CloneEvent(copyMe.SessionIncompleteContainer);
         ErrorContainer = CloneEvent(copyMe.ErrorContainer);
+
+        // Mirror NINA/Target Scheduler clone semantics for a real SequenceContainer. Even though
+        // SFCM does not expose a general-purpose main drop area, NINA still owns these inherited
+        // collections and expects cloned children to point at the clone, not the source instance.
+        Items = new ObservableCollection<ISequenceItem>(copyMe.Items.Select(i => (ISequenceItem)i.Clone()));
+        Conditions = new ObservableCollection<ISequenceCondition>(copyMe.Conditions.Select(c => (ISequenceCondition)c.Clone()));
+        Triggers = new ObservableCollection<ISequenceTrigger>(copyMe.Triggers.Select(t => (ISequenceTrigger)t.Clone()));
+
+        foreach (var item in Items) item.AttachNewParent(this);
+        foreach (var condition in Conditions) condition.AttachNewParent(this);
+        foreach (var trigger in Triggers) trigger.AttachNewParent(this);
     }
 
     [JsonProperty] public CampaignMode Mode { get; set; }
@@ -174,7 +188,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
 
     private SkyFlatEventContainer CloneEvent(SkyFlatEventContainer source)
     {
-        var clone = (SkyFlatEventContainer)source.Clone();
+        var clone = source.CloneDetached();
         clone.ResetParent(this);
         return clone;
     }
@@ -191,12 +205,6 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         ProgressText = "Idle";
         RaisePropertyChanged(nameof(ProgressText));
         base.ResetProgress();
-    }
-
-    public override void AfterParentChanged()
-    {
-        base.AfterParentChanged();
-        foreach (var c in EventContainers()) c.ResetParent(this);
     }
 
     public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token)
