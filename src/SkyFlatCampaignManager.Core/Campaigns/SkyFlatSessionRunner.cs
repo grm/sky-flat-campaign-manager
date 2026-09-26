@@ -303,7 +303,13 @@ public sealed class SkyFlatSessionRunner
                     && campaign.Filters.TryGetValue(f.FilterName, out var fp) && fp.IsIncomplete).ToList();
                 if (incomplete.Count == 0)
                 {
-                    Report(SessionState.Completed, "No incomplete filters", stop: SessionStopReasons.NoFilters);
+                    Report(SessionState.Completed, "No runnable incomplete filters remain", stop: SessionStopReasons.NoFilters);
+                    if (campaign.TotalRemaining > 0)
+                    {
+                        await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                            stopReason: SessionStopReasons.NoFilters,
+                            message: "No runnable incomplete filters remain", sunAltitude: sunAlt).ConfigureAwait(false);
+                    }
                     return Result(SessionState.Completed, SessionStopReasons.NoFilters, campaign, accepted, rejected);
                 }
 
