@@ -17,13 +17,13 @@ using SkyFlatCampaignManager.Core.Equipment;
 namespace NINA.Plugin.SkyFlatCampaignManager.Sequencer.Containers;
 
 [ExportMetadata("Name", "Sky Flat Campaign Container")]
-[ExportMetadata("Description", "Runs a sky-flat campaign and exposes blocking custom event containers at important campaign transitions.")]
+[ExportMetadata("Description", "Runs a sky-flat campaign with blocking custom event containers for notifications and automation.")]
 [ExportMetadata("Icon", "BrightnessSVG")]
 [ExportMetadata("Category", "Sky Flat Campaign Manager")]
 [Export(typeof(ISequenceItem))]
 [Export(typeof(ISequenceContainer))]
 [JsonObject(MemberSerialization.OptIn)]
-public sealed class SkyFlatCampaignContainer : SequentialContainer
+public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSessionEventSink
 {
     private readonly IProfileService _profileService;
     private readonly ICameraMediator _cameraMediator;
@@ -34,6 +34,9 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer
     private readonly IImageHistoryVM _imageHistoryVM;
     private readonly IWeatherDataMediator _weatherDataMediator;
     private readonly IApplicationStatusMediator _applicationStatusMediator;
+
+    private IProgress<ApplicationStatus>? _activeProgress;
+    private CancellationToken _activeToken;
 
     [JsonProperty] public SkyFlatEventContainer CampaignRequiredContainer { get; set; }
     [JsonProperty] public SkyFlatEventContainer CampaignNotRequiredContainer { get; set; }
@@ -162,6 +165,12 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer
     public string ProgressText { get; private set; } = "Idle";
     public SkyFlatEventContext EventContext { get; } = new();
 
+    public int FlatsRemaining => EventContext.TotalRemaining;
+    public int FlatsRequired => EventContext.TotalRequired;
+    public int FlatsAccepted => EventContext.TotalAccepted;
+    public string CurrentFilter => EventContext.Filter;
+    public string LastStopReason => EventContext.StopReason;
+
     private SkyFlatEventContainer NewEvent(SkyFlatEventType type) => new(type, this);
 
     private SkyFlatEventContainer CloneEvent(SkyFlatEventContainer source)
@@ -200,46 +209,26 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer
             return;
         }
 
-        var started = DateTime.UtcNow;
-        var key = string.IsNullOrWhiteSpace(CampaignKey) ? "default" : CampaignKey;
         var options = PluginServiceFactory.CreateOptionsFromSettings();
         options.SimulationMode = SimulationMode;
         options.DryRun = options.DryRun || SimulationMode;
         var filters = PluginServiceFactory.CreateFilterSettings(_profileService);
-        var campaigns = PluginServiceFactory.CreateCampaignService();
+        var runner = PluginServiceFactory.CreateRunner(
+            _profileService, _cameraMediator, _filterWheelMediator, _telescopeMediator,
+            _imagingMediator, _imageSaveMediator, _imageHistoryVM, _weatherDataMediator,
+            UseSqm, SimulationMode, m => Logger.Info($"[{PluginIdentity.ShortName}] {m}"));
 
-        EventContext.CampaignKey = key;
+        _activeProgress = progress;
+        _activeToken = token;
+        EventContext.CampaignKey = string.IsNullOrWhiteSpace(CampaignKey) ? "default" : CampaignKey;
         EventContext.Mode = Mode.ToString();
         SkyFlatEventContextAccessor.Set(EventContext);
 
         try
         {
-            var requirement = await campaigns.EvaluateRequirementAsync(key, options, token).ConfigureAwait(false);
-            EventContext.TotalRequired = CampaignMetrics.ConfiguredTarget(filters);
-            EventContext.TotalRemaining = CampaignMetrics.FlatsRemaining(requirement, filters);
-            EventContext.TotalAccepted = requirement.Campaign?.TotalAccepted ?? 0;
-            EventContext.State = requirement.IsRequired ? "CampaignRequired" : "CampaignNotRequired";
-            EventContext.StopReason = requirement.Reason;
-
-            if (!requirement.IsRequired)
-            {
-                await ExecuteEventContainer(CampaignNotRequiredContainer, progress, token).ConfigureAwait(false);
-                ProgressText = "Skipped: campaign already complete";
-                RaisePropertyChanged(nameof(ProgressText));
-                return;
-            }
-
-            await ExecuteEventContainer(CampaignRequiredContainer, progress, token).ConfigureAwait(false);
-
-            var runner = PluginServiceFactory.CreateRunner(
-                _profileService, _cameraMediator, _filterWheelMediator, _telescopeMediator,
-                _imagingMediator, _imageSaveMediator, _imageHistoryVM, _weatherDataMediator,
-                UseSqm, SimulationMode, m => Logger.Info($"[{PluginIdentity.ShortName}] {m}"));
-
-            var bridge = new EventProgressBridge(this, campaigns, filters, progress, token);
             var request = new SkyFlatSessionRequest
             {
-                CampaignKey = key,
+                CampaignKey = EventContext.CampaignKey,
                 ProfileId = _profileService.ActiveProfile.Id.ToString(),
                 Mode = Mode,
                 Strategy = Strategy,
@@ -255,6 +244,7 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer
                 UseSqm = UseSqm,
                 Options = options,
                 Filters = filters,
+                EventSink = this,
                 Pointing = new MountPointingRequest
                 {
                     Mode = PointingMode,
@@ -268,59 +258,71 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer
                 }
             };
 
-            var result = await runner.RunAsync(request, bridge, token).ConfigureAwait(false);
-            bridge.FlushPendingFilterCompletion();
-            bridge.EndWaitEpisodeIfNeeded();
+            var progressAdapter = new Progress<SkyFlatSessionProgress>(p =>
+            {
+                EventContext.ApplyProgress(p);
+                var levelText = p.MeasuredHistogramFraction is { } frac
+                    ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU"
+                    : "n/a";
+                ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
+                RaisePropertyChanged(nameof(ProgressText));
+                RaiseContextProperties();
+                progress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {ProgressText}" });
+                _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = ProgressText });
+            });
 
+            var result = await runner.RunAsync(request, progressAdapter, token).ConfigureAwait(false);
             EventContext.AcceptedThisSession = result.AcceptedThisSession;
             EventContext.RejectedThisSession = result.RejectedThisSession;
             EventContext.StopReason = result.StopReason;
-            EventContext.Duration = DateTime.UtcNow - started;
             EventContext.ApplyCampaign(result.Campaign);
-
             ProgressText = $"{result.FinalState}: {result.StopReason} (accepted={result.AcceptedThisSession}, rejected={result.RejectedThisSession}, remaining={EventContext.TotalRemaining})";
             RaisePropertyChanged(nameof(ProgressText));
-
-            if (result.Campaign?.IsComplete == true || EventContext.TotalRemaining == 0)
-                await ExecuteEventContainer(CampaignCompletedContainer, progress, token).ConfigureAwait(false);
-            else if (result.IsPartialSuccess || EventContext.TotalRemaining > 0)
-                await ExecuteEventContainer(SessionIncompleteContainer, progress, token).ConfigureAwait(false);
+            RaiseContextProperties();
 
             if (result.FinalState == SessionState.Faulted)
                 throw new SequenceEntityFailedException(ProgressText);
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            EventContext.State = "Faulted";
-            EventContext.StopReason = ex.Message;
-            EventContext.Duration = DateTime.UtcNow - started;
-            try
-            {
-                await ExecuteEventContainer(ErrorContainer, progress, token).ConfigureAwait(false);
-            }
-            catch (Exception hookEx)
-            {
-                Logger.Error(hookEx);
-            }
-            throw;
-        }
         finally
         {
+            _activeProgress = null;
             SkyFlatEventContextAccessor.Clear(EventContext);
         }
     }
 
-    private async Task ExecuteEventContainer(SkyFlatEventContainer container, IProgress<ApplicationStatus> progress, CancellationToken token)
+    public async Task OnEventAsync(SkyFlatSessionEvent sessionEvent, CancellationToken cancellationToken)
+    {
+        EventContext.ApplyEvent(sessionEvent);
+        RaiseContextProperties();
+
+        var container = sessionEvent.Kind switch
+        {
+            SkyFlatSessionEventKind.CampaignRequired => CampaignRequiredContainer,
+            SkyFlatSessionEventKind.CampaignNotRequired => CampaignNotRequiredContainer,
+            SkyFlatSessionEventKind.BeforeWait => BeforeWaitContainer,
+            SkyFlatSessionEventKind.AfterWait => AfterWaitContainer,
+            SkyFlatSessionEventKind.BeforeFilter => BeforeFilterContainer,
+            SkyFlatSessionEventKind.AfterFilter => AfterFilterContainer,
+            SkyFlatSessionEventKind.CampaignCompleted => CampaignCompletedContainer,
+            SkyFlatSessionEventKind.SessionIncomplete => SessionIncompleteContainer,
+            SkyFlatSessionEventKind.Error => ErrorContainer,
+            _ => null
+        };
+
+        if (container is not null)
+            await ExecuteEventContainer(container, _activeProgress, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ExecuteEventContainer(
+        SkyFlatEventContainer container,
+        IProgress<ApplicationStatus>? progress,
+        CancellationToken token)
     {
         if (container.Items?.Count <= 0) return;
         container.ResetParent(this);
         container.ResetProgress();
         Logger.Info($"[{PluginIdentity.ShortName}] Event container '{container.Name}' starting");
-        await container.Execute(progress, token).ConfigureAwait(false);
+        await container.Execute(progress!, token).ConfigureAwait(false);
         Logger.Info($"[{PluginIdentity.ShortName}] Event container '{container.Name}' finished");
     }
 
@@ -337,109 +339,17 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer
         yield return ErrorContainer;
     }
 
+    private void RaiseContextProperties()
+    {
+        RaisePropertyChanged(nameof(FlatsRemaining));
+        RaisePropertyChanged(nameof(FlatsRequired));
+        RaisePropertyChanged(nameof(FlatsAccepted));
+        RaisePropertyChanged(nameof(CurrentFilter));
+        RaisePropertyChanged(nameof(LastStopReason));
+    }
+
     public override object Clone() => new SkyFlatCampaignContainer(this);
 
     public override string ToString()
         => $"Category: {Category}, Item: {nameof(SkyFlatCampaignContainer)}, Mode={Mode}, Key={CampaignKey}";
-
-    private sealed class EventProgressBridge : IProgress<SkyFlatSessionProgress>
-    {
-        private readonly SkyFlatCampaignContainer owner;
-        private readonly ICampaignService campaigns;
-        private readonly IReadOnlyList<FilterCampaignSettings> filters;
-        private readonly IProgress<ApplicationStatus> outerProgress;
-        private readonly CancellationToken token;
-        private bool waiting;
-        private string? activeFilter;
-        private readonly HashSet<string> completedFilterHooks = new(StringComparer.OrdinalIgnoreCase);
-
-        public EventProgressBridge(
-            SkyFlatCampaignContainer owner,
-            ICampaignService campaigns,
-            IReadOnlyList<FilterCampaignSettings> filters,
-            IProgress<ApplicationStatus> outerProgress,
-            CancellationToken token)
-        {
-            this.owner = owner;
-            this.campaigns = campaigns;
-            this.filters = filters;
-            this.outerProgress = outerProgress;
-            this.token = token;
-        }
-
-        public void Report(SkyFlatSessionProgress value)
-        {
-            token.ThrowIfCancellationRequested();
-            owner.EventContext.ApplyProgress(value);
-
-            var levelText = value.MeasuredHistogramFraction is { } frac
-                ? $"{frac * 100.0:F1}%/{value.MeasuredAdu:F0}ADU"
-                : "n/a";
-            owner.ProgressText = $"{value.State}: {value.CurrentFilter} level={levelText} exp={value.ExposureSeconds:F3}s rem={value.Remaining} — {value.StatusMessage}";
-            owner.RaisePropertyChanged(nameof(ProgressText));
-            outerProgress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {owner.ProgressText}" });
-            owner._applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = owner.ProgressText });
-
-            if (value.State == SessionState.WaitingForAstronomicalWindow)
-            {
-                if (!waiting)
-                {
-                    RefreshCampaign();
-                    owner.ExecuteEventContainer(owner.BeforeWaitContainer, outerProgress, token).GetAwaiter().GetResult();
-                    waiting = true;
-                }
-                return;
-            }
-
-            if (waiting)
-            {
-                RefreshCampaign();
-                owner.ExecuteEventContainer(owner.AfterWaitContainer, outerProgress, token).GetAwaiter().GetResult();
-                waiting = false;
-            }
-
-            if (value.State == SessionState.SelectingFilter || value.State == SessionState.Completed)
-                FlushPendingFilterCompletion();
-
-            if (value.State == SessionState.EstimatingExposure
-                && !string.IsNullOrWhiteSpace(value.CurrentFilter)
-                && !string.Equals(activeFilter, value.CurrentFilter, StringComparison.OrdinalIgnoreCase))
-            {
-                activeFilter = value.CurrentFilter;
-                RefreshCampaign();
-                owner.ExecuteEventContainer(owner.BeforeFilterContainer, outerProgress, token).GetAwaiter().GetResult();
-            }
-        }
-
-        public void EndWaitEpisodeIfNeeded()
-        {
-            if (!waiting) return;
-            RefreshCampaign();
-            owner.ExecuteEventContainer(owner.AfterWaitContainer, outerProgress, token).GetAwaiter().GetResult();
-            waiting = false;
-        }
-
-        public void FlushPendingFilterCompletion()
-        {
-            if (string.IsNullOrWhiteSpace(activeFilter) || completedFilterHooks.Contains(activeFilter)) return;
-            var campaign = campaigns.GetOrCreateAsync(owner.EventContext.CampaignKey,
-                owner._profileService.ActiveProfile.Id.ToString(), filters,
-                PluginServiceFactory.CreateOptionsFromSettings(), token).GetAwaiter().GetResult();
-            owner.EventContext.ApplyCampaign(campaign);
-            owner.EventContext.Filter = activeFilter;
-            owner.EventContext.ApplyCampaign(campaign);
-            if (!campaign.Filters.TryGetValue(activeFilter, out var fp) || fp.Remaining > 0) return;
-
-            completedFilterHooks.Add(activeFilter);
-            owner.ExecuteEventContainer(owner.AfterFilterContainer, outerProgress, token).GetAwaiter().GetResult();
-        }
-
-        private void RefreshCampaign()
-        {
-            var campaign = campaigns.GetOrCreateAsync(owner.EventContext.CampaignKey,
-                owner._profileService.ActiveProfile.Id.ToString(), filters,
-                PluginServiceFactory.CreateOptionsFromSettings(), token).GetAwaiter().GetResult();
-            owner.EventContext.ApplyCampaign(campaign);
-        }
-    }
 }
