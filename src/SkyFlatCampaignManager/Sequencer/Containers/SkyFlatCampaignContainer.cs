@@ -81,6 +81,8 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         AdaptiveProbeWait = true;
         MinProbeWaitSeconds = 5;
         MaxProbeWaitSeconds = 30;
+        SkipLateEveningStart = true;
+        LatestEveningStartSunAltitudeDegrees = -10;
         CampaignKey = "default";
         UseSqm = false;
         PointingMode = MountPointingMode.AltAz;
@@ -119,6 +121,8 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         AdaptiveProbeWait = copyMe.AdaptiveProbeWait;
         MinProbeWaitSeconds = copyMe.MinProbeWaitSeconds;
         MaxProbeWaitSeconds = copyMe.MaxProbeWaitSeconds;
+        SkipLateEveningStart = copyMe.SkipLateEveningStart;
+        LatestEveningStartSunAltitudeDegrees = copyMe.LatestEveningStartSunAltitudeDegrees;
         CampaignKey = copyMe.CampaignKey;
         UseSqm = copyMe.UseSqm;
         PointingMode = copyMe.PointingMode;
@@ -162,6 +166,8 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
     [JsonProperty] public bool AdaptiveProbeWait { get; set; }
     [JsonProperty] public double MinProbeWaitSeconds { get; set; }
     [JsonProperty] public double MaxProbeWaitSeconds { get; set; }
+    [JsonProperty] public bool SkipLateEveningStart { get; set; }
+    [JsonProperty] public double LatestEveningStartSunAltitudeDegrees { get; set; }
     [JsonProperty] public string CampaignKey { get; set; }
     [JsonProperty] public bool UseSqm { get; set; }
     [JsonProperty] public MountPointingMode PointingMode { get; set; }
@@ -244,6 +250,8 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
                 AdaptiveProbeWait = AdaptiveProbeWait,
                 MinProbeWaitSeconds = Math.Max(1, MinProbeWaitSeconds),
                 MaxProbeWaitSeconds = Math.Max(Math.Max(1, MinProbeWaitSeconds), MaxProbeWaitSeconds),
+                SkipLateEveningStart = SkipLateEveningStart,
+                LatestEveningStartSunAltitudeDegrees = LatestEveningStartSunAltitudeDegrees,
                 WhenNoFlatsRequired = WhenNoFlatsRequiredAction.SucceedImmediately,
                 WhenNoFilterFeasible = WhenNoFilterFeasible,
                 OnFilterError = OnFilterError,

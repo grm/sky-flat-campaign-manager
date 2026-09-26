@@ -93,4 +93,22 @@ public class SkyFlatEventMessageFormatterTests
             .Should().Be("SFCM: sky flats starting — 140 flat(s) remaining");
     }
 
+    [Fact]
+    public void Late_evening_start_uses_clear_skip_message()
+    {
+        var e = new SkyFlatSessionEvent
+        {
+            Kind = SkyFlatSessionEventKind.SessionIncomplete,
+            CampaignKey = "default",
+            Mode = CampaignMode.Evening,
+            Remaining = 140,
+            StopReason = SessionStopReasons.EveningStartTooLate,
+            SunAltitudeDegrees = -10.6
+        };
+
+        SkyFlatEventMessageFormatter.FormatDefault(e)
+            .Should().Be("SFCM: evening sky flats skipped — twilight too advanced — 140 remaining");
+    }
+
+
 }

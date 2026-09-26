@@ -57,6 +57,8 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         AdaptiveProbeWait = true;
         MinProbeWaitSeconds = 5;
         MaxProbeWaitSeconds = 30;
+        SkipLateEveningStart = true;
+        LatestEveningStartSunAltitudeDegrees = -10;
         CampaignKey = "default";
         UseSqm = false;
         PointingMode = MountPointingMode.AltAz;
@@ -86,6 +88,8 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
         AdaptiveProbeWait = copyMe.AdaptiveProbeWait;
         MinProbeWaitSeconds = copyMe.MinProbeWaitSeconds;
         MaxProbeWaitSeconds = copyMe.MaxProbeWaitSeconds;
+        SkipLateEveningStart = copyMe.SkipLateEveningStart;
+        LatestEveningStartSunAltitudeDegrees = copyMe.LatestEveningStartSunAltitudeDegrees;
         CampaignKey = copyMe.CampaignKey;
         UseSqm = copyMe.UseSqm;
         PointingMode = copyMe.PointingMode;
@@ -109,6 +113,8 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
     [JsonProperty] public bool AdaptiveProbeWait { get; set; }
     [JsonProperty] public double MinProbeWaitSeconds { get; set; }
     [JsonProperty] public double MaxProbeWaitSeconds { get; set; }
+    [JsonProperty] public bool SkipLateEveningStart { get; set; }
+    [JsonProperty] public double LatestEveningStartSunAltitudeDegrees { get; set; }
     [JsonProperty] public string CampaignKey { get; set; }
     [JsonProperty] public bool UseSqm { get; set; }
     [JsonProperty] public MountPointingMode PointingMode { get; set; }
@@ -154,6 +160,8 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
             AdaptiveProbeWait = AdaptiveProbeWait,
             MinProbeWaitSeconds = Math.Max(1, MinProbeWaitSeconds),
             MaxProbeWaitSeconds = Math.Max(Math.Max(1, MinProbeWaitSeconds), MaxProbeWaitSeconds),
+            SkipLateEveningStart = SkipLateEveningStart,
+            LatestEveningStartSunAltitudeDegrees = LatestEveningStartSunAltitudeDegrees,
             WhenNoFlatsRequired = WhenNoFlatsRequired,
             WhenNoFilterFeasible = WhenNoFilterFeasible,
             OnFilterError = OnFilterError,
