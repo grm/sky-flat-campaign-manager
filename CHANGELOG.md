@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.8 — 2026-09-26
+
+### Fixed
+- **Crash when loading/rendering a playlist containing Sky Flat Campaign Container on NINA 3.2.** Read-only status properties (`FlatsRequired`, `FlatsAccepted`, `FlatsRemaining`, `CurrentFilter`, and `ProgressText`) now use explicit `Mode=OneWay` WPF bindings.
+- The legacy `Run Sky Flat Campaign` progress display is also explicitly OneWay.
+- Added a regression test to prevent implicit write-back bindings from being reintroduced.
+
 ## 0.0.7 — 2026-09-26
 
 ### Fixed
