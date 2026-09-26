@@ -17,17 +17,25 @@
 
 
     <DataTemplate DataType="{x:Type cont:SkyFlatEventContainer}">
-        <Border MinHeight="45" Margin="0,4,0,4" Padding="4" BorderBrush="#40808080" BorderThickness="1">
-            <Grid Background="{DynamicResource BackgroundBrush}">
-                <ItemsControl MinHeight="40" ItemsSource="{Binding Items}" />
-                <i:Interaction.Behaviors>
-                    <behaviors:DragOverBehavior DragAboveSize="0" DragBelowSize="0" />
-                    <behaviors:DropIntoBehavior
-                        AllowedDragDropTypesString="NINA.Sequencer.Container.ISequenceContainer;NINA.Sequencer.SequenceItem.ISequenceItem;NINA.Sequencer.TemplatedSequenceContainer"
-                        OnDropCommand="DropIntoCommand" />
-                </i:Interaction.Behaviors>
-            </Grid>
-        </Border>
+        <StackPanel Margin="0,2,0,4">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                <TextBlock Text="Message template" Width="115" VerticalAlignment="Center"/>
+                <TextBox MinWidth="360"
+                         Text="{Binding MessageTemplate, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Optional. Tokens: {remaining}, {required}, {accepted}, {filter}, {filterRemaining}, {filterAccepted}, {filterRequired}, {mode}, {state}, {exposure}, {adu}, {histogram}, {sunAltitude}, {waitReason}, {stopReason}, {duration}. Leave blank for SFCM's default message."/>
+            </StackPanel>
+            <Border MinHeight="45" Padding="4" BorderBrush="#40808080" BorderThickness="1">
+                <Grid Background="{DynamicResource BackgroundBrush}">
+                    <ItemsControl MinHeight="40" ItemsSource="{Binding Items}" />
+                    <i:Interaction.Behaviors>
+                        <behaviors:DragOverBehavior DragAboveSize="0" DragBelowSize="0" />
+                        <behaviors:DropIntoBehavior
+                            AllowedDragDropTypesString="NINA.Sequencer.Container.ISequenceContainer;NINA.Sequencer.SequenceItem.ISequenceItem;NINA.Sequencer.TemplatedSequenceContainer"
+                            OnDropCommand="DropIntoCommand" />
+                    </i:Interaction.Behaviors>
+                </Grid>
+            </Border>
+        </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type cont:SkyFlatCampaignContainer}">
@@ -91,7 +99,7 @@
                     <TextBlock Margin="4,2,4,2" TextWrapping="Wrap" Opacity="0.7"
                                Text="Events are blocking: instructions placed here finish before SFCM continues. Use Ground Station, scripts, or any NINA instruction."/>
                     <TextBlock Margin="4,0,4,5" TextWrapping="Wrap" Opacity="0.7"
-                               Text="Ground Station tip (NINA 3.2): use its &#36;&#36;INSTRUCTION_SET&#36;&#36; token as the message. SFCM sets the event-container name to a contextual message including remaining flats/filter/reason."/>
+                               Text="Ground Station tip (NINA 3.2): set its message to &#36;&#36;INSTRUCTION_SET&#36;&#36;. SFCM resolves the optional template above with live values, then exposes that resolved text as the event container name."/>
                     <Expander Header="Campaign Required — runs once when flats are needed">
                         <ContentControl Content="{Binding CampaignRequiredContainer}"/>
                     </Expander>
