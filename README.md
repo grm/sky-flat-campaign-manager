@@ -81,6 +81,10 @@ The sun altitude is classified relative to the resolved Morning/Evening mode as 
 
 `TooLate` is a normal closed-twilight outcome, not a fault — the runner stops immediately regardless of **Allow wait for sky**, because the sun keeps moving in the same direction and the window cannot reopen this session.
 
+For **Evening** sessions there is also a configurable soft latest-start cutoff (default **Sun altitude -10°**). If SFCM first starts after that altitude, it skips the flat run before any mount movement and returns control to the NINA sequence so science imaging is not delayed for a nearly-finished twilight. Disable **Skip late evening start** to use every remaining minute up to the hard window minimum (default -12°). The soft cutoff is checked only at session start; a campaign already running may continue to the hard window limit.
+
+Morning sessions intentionally have no equivalent soft cutoff: there is no science-imaging block to protect after dawn, so SFCM uses every remaining usable minute until the hard morning limit (default Sun altitude -1°).
+
 ## Advanced Sequencer examples
 
 The preferred setup is now a single **Sky Flat Campaign Container**. It evaluates campaign
