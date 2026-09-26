@@ -28,6 +28,7 @@ public sealed class SkyFlatSessionRequest
     public MountPointingRequest Pointing { get; init; } = new();
     public CampaignOptions Options { get; init; } = new();
     public IReadOnlyList<FilterCampaignSettings> Filters { get; init; } = Array.Empty<FilterCampaignSettings>();
+    public ISkyFlatSessionEventSink? EventSink { get; init; }
 }
 
 public sealed class SkyFlatSessionProgress
@@ -100,12 +101,52 @@ public sealed class SkyFlatSessionRunner
         var unavailableFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var windowWait = new WaitTracker(_clock);
         var filterWait = new WaitTracker(_clock);
+        var waitEpisodeActive = false;
+        string? eventActiveFilter = null;
+        var completedFilterEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         void Report(SessionState state, string message, string? wait = null, string? stop = null)
         {
             p.State = state; p.StatusMessage = message; p.WaitReason = wait; p.StopReason = stop;
             p.CurrentFilter = currentFilter; progress?.Report(p);
             if (request.Options.DetailedLogging) _log?.Invoke($"[{state}] {message}");
+        }
+
+        async Task EmitAsync(
+            SkyFlatSessionEventKind kind,
+            CampaignMode eventMode,
+            CampaignState? eventCampaign,
+            string? filter = null,
+            string? waitReason = null,
+            string? stopReason = null,
+            string? message = null,
+            double? sunAltitude = null,
+            double? exposure = null,
+            int? remainingOverride = null,
+            Exception? exception = null)
+        {
+            if (request.EventSink is null) return;
+            await request.EventSink.OnEventAsync(new SkyFlatSessionEvent
+            {
+                Kind = kind,
+                CampaignKey = request.CampaignKey,
+                Mode = eventMode,
+                Campaign = eventCampaign,
+                CurrentFilter = filter ?? currentFilter,
+                WaitReason = waitReason,
+                StopReason = stopReason,
+                StatusMessage = message,
+                ConfiguredTarget = CampaignMetrics.ConfiguredTarget(request.Filters),
+                Remaining = remainingOverride ?? eventCampaign?.TotalRemaining ?? p.Remaining,
+                AcceptedThisSession = accepted,
+                RejectedThisSession = rejected,
+                ExposureSeconds = exposure ?? p.ExposureSeconds,
+                MeasuredAdu = p.MeasuredAdu,
+                MeasuredHistogramFraction = p.MeasuredHistogramFraction,
+                SunAltitudeDegrees = sunAltitude,
+                Duration = _clock.UtcNow - started,
+                Exception = exception
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         ExposureEstimateResult Estimate(FilterCampaignSettings filter, CampaignState campaign, CampaignMode mode)
@@ -157,11 +198,18 @@ public sealed class SkyFlatSessionRunner
             cancellationToken.ThrowIfCancellationRequested();
             Report(SessionState.CheckingCampaign, "Evaluating campaign requirement");
             var requirement = await _campaigns.EvaluateRequirementAsync(request.CampaignKey, request.Options, cancellationToken).ConfigureAwait(false);
+            var requirementRemaining = CampaignMetrics.FlatsRemaining(requirement, request.Filters);
             if (!requirement.IsRequired && request.WhenNoFlatsRequired == WhenNoFlatsRequiredAction.SucceedImmediately)
             {
+                await EmitAsync(SkyFlatSessionEventKind.CampaignNotRequired, request.Mode, requirement.Campaign,
+                    stopReason: requirement.Reason, message: "No flats required", remainingOverride: requirementRemaining).ConfigureAwait(false);
                 Report(SessionState.Completed, "No flats required", stop: requirement.Reason);
                 return Result(SessionState.Completed, requirement.Reason, requirement.Campaign, 0, 0);
             }
+
+            await EmitAsync(SkyFlatSessionEventKind.CampaignRequired, request.Mode, requirement.Campaign,
+                stopReason: requirement.Reason, message: $"{requirementRemaining} flats required",
+                remainingOverride: requirementRemaining).ConfigureAwait(false);
 
             var campaign = await _campaigns.GetOrCreateAsync(request.CampaignKey, request.ProfileId, request.Filters, request.Options, cancellationToken).ConfigureAwait(false);
             p.Accepted = campaign.TotalAccepted; p.Remaining = campaign.TotalRemaining;
@@ -182,6 +230,8 @@ public sealed class SkyFlatSessionRunner
                 if ((_clock.UtcNow - started).TotalMinutes >= request.MaxDurationMinutes)
                 {
                     Report(SessionState.StoppedByTimeout, "Max duration reached", stop: SessionStopReasons.MaxDuration);
+                    await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                        stopReason: SessionStopReasons.MaxDuration, message: "Max duration reached").ConfigureAwait(false);
                     return Result(SessionState.StoppedByTimeout, SessionStopReasons.MaxDuration, campaign, accepted, rejected);
                 }
 
@@ -191,6 +241,8 @@ public sealed class SkyFlatSessionRunner
                 {
                     campaign = await _campaigns.MarkCompletedAsync(request.CampaignKey, request.Options, cancellationToken).ConfigureAwait(false);
                     Report(SessionState.Completed, "Campaign complete", stop: SessionStopReasons.Completed);
+                    await EmitAsync(SkyFlatSessionEventKind.CampaignCompleted, mode, campaign,
+                        stopReason: SessionStopReasons.Completed, message: "Campaign complete").ConfigureAwait(false);
                     _notifications.Success("Sky flat campaign completed.");
                     return Result(SessionState.Completed, SessionStopReasons.Completed, campaign, accepted, rejected);
                 }
@@ -208,16 +260,30 @@ public sealed class SkyFlatSessionRunner
                             var elapsed = windowWait.ElapsedMinutes(SessionWaitReasons.AstronomicalWindowNotOpenYet);
                             if (elapsed < request.MaxWaitMinutes)
                             {
-                                Report(SessionState.WaitingForAstronomicalWindow,
-                                    $"Sun altitude {sunAlt:F1}° has not reached the {mode} window [{window.MinSunAltitudeDegrees:F1}°, {window.MaxSunAltitudeDegrees:F1}°] yet",
+                                var waitMessage = $"Sun altitude {sunAlt:F1}° has not reached the {mode} window [{window.MinSunAltitudeDegrees:F1}°, {window.MaxSunAltitudeDegrees:F1}°] yet";
+                                Report(SessionState.WaitingForAstronomicalWindow, waitMessage,
                                     SessionWaitReasons.AstronomicalWindowNotOpenYet);
+                                if (!waitEpisodeActive)
+                                {
+                                    await EmitAsync(SkyFlatSessionEventKind.BeforeWait, mode, campaign,
+                                        waitReason: SessionWaitReasons.AstronomicalWindowNotOpenYet,
+                                        message: waitMessage, sunAltitude: sunAlt).ConfigureAwait(false);
+                                    waitEpisodeActive = true;
+                                }
                                 await Task.Delay(WindowPollInterval, cancellationToken).ConfigureAwait(false);
                                 continue;
                             }
                             Report(SessionState.StoppedByWindow, "Waited for the astronomical window to open, but it did not open in time", stop: SessionStopReasons.AstronomicalWindowWaitTimeout);
+                            await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                                waitReason: SessionWaitReasons.AstronomicalWindowNotOpenYet,
+                                stopReason: SessionStopReasons.AstronomicalWindowWaitTimeout,
+                                message: "Astronomical window wait timed out", sunAltitude: sunAlt).ConfigureAwait(false);
                             return Result(SessionState.StoppedByWindow, SessionStopReasons.AstronomicalWindowWaitTimeout, campaign, accepted, rejected);
                         }
                         Report(SessionState.StoppedByWindow, $"Astronomical window not open yet (sun altitude {sunAlt:F1}°) and waiting is disabled", stop: SessionStopReasons.AstronomicalWindowNotOpenYet);
+                        await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                            stopReason: SessionStopReasons.AstronomicalWindowNotOpenYet,
+                            message: "Astronomical window not open and waiting disabled", sunAltitude: sunAlt).ConfigureAwait(false);
                         return Result(SessionState.StoppedByWindow, SessionStopReasons.AstronomicalWindowNotOpenYet, campaign, accepted, rejected);
                     }
 
@@ -226,6 +292,8 @@ public sealed class SkyFlatSessionRunner
                         ? $"Sun altitude {sunAlt:F1}° is below the evening window minimum ({window.MinSunAltitudeDegrees:F1}°) — sky is already too dark for flats."
                         : $"Sun altitude {sunAlt:F1}° is above the morning window maximum ({window.MaxSunAltitudeDegrees:F1}°) — sky is already too bright for flats.";
                     Report(SessionState.StoppedByWindow, message, stop: reason);
+                    await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                        stopReason: reason, message: message, sunAltitude: sunAlt).ConfigureAwait(false);
                     return Result(SessionState.StoppedByWindow, reason, campaign, accepted, rejected);
                 }
                 windowWait.Reset();
@@ -264,22 +332,58 @@ public sealed class SkyFlatSessionRunner
                             var delay = ProbeDelay(improving, estimates);
                             var frontier = improving.OrderBy(f => Math.Abs(Math.Log(Math.Max(0.000001, estimates[f.FilterName].UnclampedExposureSeconds) /
                                 Math.Max(0.000001, estimates[f.FilterName].Feasibility == ExposureFeasibility.TooShort ? f.MinExposureSeconds : f.MaxExposureSeconds)))).First();
-                            Report(SessionState.WaitingForAstronomicalWindow,
-                                $"No filter feasible yet; frontier={frontier.FilterName} ({ExposureFeasibilityRules.Describe(mode, estimates[frontier.FilterName].Feasibility)}), retry in {delay.TotalSeconds:F0}s",
+                            var waitMessage = $"No filter feasible yet; frontier={frontier.FilterName} ({ExposureFeasibilityRules.Describe(mode, estimates[frontier.FilterName].Feasibility)}), retry in {delay.TotalSeconds:F0}s";
+                            currentFilter = frontier.FilterName;
+                            p.ExposureSeconds = estimates[frontier.FilterName].ClampedExposureSeconds;
+                            Report(SessionState.WaitingForAstronomicalWindow, waitMessage,
                                 SessionWaitReasons.FilterNotFeasible);
+                            if (!waitEpisodeActive)
+                            {
+                                await EmitAsync(SkyFlatSessionEventKind.BeforeWait, mode, campaign,
+                                    filter: frontier.FilterName, waitReason: SessionWaitReasons.FilterNotFeasible,
+                                    message: waitMessage, sunAltitude: sunAlt,
+                                    exposure: estimates[frontier.FilterName].ClampedExposureSeconds).ConfigureAwait(false);
+                                waitEpisodeActive = true;
+                            }
                             await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                             continue;
                         }
                         Report(SessionState.StoppedByWindow, "Waited for a filter to become exposure-feasible, but none did in time", stop: SessionStopReasons.NoFilterFeasibleWaitTimeout);
+                        await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                            waitReason: SessionWaitReasons.FilterNotFeasible,
+                            stopReason: SessionStopReasons.NoFilterFeasibleWaitTimeout,
+                            message: "No filter became exposure-feasible in time", sunAltitude: sunAlt).ConfigureAwait(false);
                         return Result(SessionState.StoppedByWindow, SessionStopReasons.NoFilterFeasibleWaitTimeout, campaign, accepted, rejected);
                     }
                     if (request.WhenNoFilterFeasible == WhenNoFilterFeasibleAction.Fail)
                         throw new PluginError($"No filter currently feasible (checked {incomplete.Count} incomplete filter(s)).", ErrorCategory.Session);
                     var detail = string.Join(" ", incomplete.Select(f => $"{f.FilterName}: {ExposureFeasibilityRules.Describe(mode, estimates[f.FilterName].Feasibility)}"));
-                    Report(SessionState.StoppedByWindow, $"No incomplete filter is currently exposure-feasible. {detail}", stop: SessionStopReasons.NoFilterFeasible);
+                    var noFeasibleMessage = $"No incomplete filter is currently exposure-feasible. {detail}";
+                    Report(SessionState.StoppedByWindow, noFeasibleMessage, stop: SessionStopReasons.NoFilterFeasible);
+                    await EmitAsync(SkyFlatSessionEventKind.SessionIncomplete, mode, campaign,
+                        stopReason: SessionStopReasons.NoFilterFeasible,
+                        message: noFeasibleMessage, sunAltitude: sunAlt).ConfigureAwait(false);
                     return Result(SessionState.StoppedByWindow, SessionStopReasons.NoFilterFeasible, campaign, accepted, rejected);
                 }
                 filterWait.Reset();
+
+                if (waitEpisodeActive)
+                {
+                    await EmitAsync(SkyFlatSessionEventKind.AfterWait, mode, campaign,
+                        filter: next.FilterName, message: "Twilight wait complete; resuming flats",
+                        sunAltitude: sunAlt, exposure: estimates[next.FilterName].ClampedExposureSeconds).ConfigureAwait(false);
+                    waitEpisodeActive = false;
+                }
+
+                if (!string.Equals(eventActiveFilter, next.FilterName, StringComparison.OrdinalIgnoreCase))
+                {
+                    eventActiveFilter = next.FilterName;
+                    currentFilter = next.FilterName;
+                    p.ExposureSeconds = estimates[next.FilterName].ClampedExposureSeconds;
+                    await EmitAsync(SkyFlatSessionEventKind.BeforeFilter, mode, campaign,
+                        filter: next.FilterName, message: $"Starting flats for {next.FilterName}",
+                        sunAltitude: sunAlt, exposure: estimates[next.FilterName].ClampedExposureSeconds).ConfigureAwait(false);
+                }
 
                 CapturedFlatFrame? frame = null;
                 try
@@ -341,6 +445,15 @@ public sealed class SkyFlatSessionRunner
                             validation.MeasuredAdu, validation.MeasuredHistogramFraction, sunAlt, cancellationToken).ConfigureAwait(false);
                         accepted++; rejectionStreak[next.FilterName] = 0;
                         p.Accepted = campaign.TotalAccepted; p.Remaining = campaign.TotalRemaining;
+
+                        if (campaign.Filters.TryGetValue(next.FilterName, out var completedProgress)
+                            && completedProgress.Remaining == 0
+                            && completedFilterEvents.Add(next.FilterName))
+                        {
+                            await EmitAsync(SkyFlatSessionEventKind.AfterFilter, mode, campaign,
+                                filter: next.FilterName, message: $"{next.FilterName} flats complete",
+                                sunAltitude: sunAlt, exposure: exposure).ConfigureAwait(false);
+                        }
                     }
                     else
                     {
@@ -385,7 +498,18 @@ public sealed class SkyFlatSessionRunner
         }
         catch (Exception ex)
         {
-            Report(SessionState.Faulted, ex.Message, stop: SessionStopReasons.Faulted); _notifications.Error(ex.Message); throw;
+            Report(SessionState.Faulted, ex.Message, stop: SessionStopReasons.Faulted);
+            try
+            {
+                await EmitAsync(SkyFlatSessionEventKind.Error, request.Mode, null,
+                    stopReason: SessionStopReasons.Faulted, message: ex.Message, exception: ex).ConfigureAwait(false);
+            }
+            catch (Exception eventEx)
+            {
+                _log?.Invoke($"Error event hook failed: {eventEx.Message}");
+            }
+            _notifications.Error(ex.Message);
+            throw;
         }
         finally
         {
