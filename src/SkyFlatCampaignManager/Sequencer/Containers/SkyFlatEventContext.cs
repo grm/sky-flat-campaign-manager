@@ -57,6 +57,7 @@ public sealed class SkyFlatEventContext
         Filter = e.CurrentFilter ?? string.Empty;
         TotalRequired = e.ConfiguredTarget;
         TotalRemaining = e.Remaining;
+        TotalAccepted = e.Campaign?.TotalAccepted ?? 0;
         AcceptedThisSession = e.AcceptedThisSession;
         RejectedThisSession = e.RejectedThisSession;
         ExposureSeconds = e.ExposureSeconds ?? 0;
@@ -67,9 +68,14 @@ public sealed class SkyFlatEventContext
 
         if (e.Campaign is not null)
         {
-            TotalAccepted = e.Campaign.TotalAccepted;
             if (TotalRequired <= 0) TotalRequired = e.Campaign.TotalTarget;
             ApplyFilter(e.Campaign);
+        }
+        else
+        {
+            FilterRequired = 0;
+            FilterAccepted = 0;
+            FilterRemaining = 0;
         }
     }
 
