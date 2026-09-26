@@ -67,6 +67,17 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Probe wait min (s)" Width="150"/><TextBox Width="65" Text="{Binding MinProbeWaitSeconds, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Probe wait max (s)" Width="150"/><TextBox Width="65" Text="{Binding MaxProbeWaitSeconds, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Wait failsafe (min)" Width="150"/><TextBox Width="65" Text="{Binding MaxWaitMinutes, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Skip late evening start" Width="150" VerticalAlignment="Center"/>
+                                    <CheckBox IsChecked="{Binding SkipLateEveningStart}" VerticalAlignment="Center"
+                                              ToolTip="If enabled, an Evening session that starts after the configured soft cutoff skips flats immediately and returns to the NINA sequence."/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Latest evening start (°)" Width="150" VerticalAlignment="Center"/>
+                                    <TextBox Width="65" Text="{Binding LatestEveningStartSunAltitudeDegrees, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Default -10°. Applies only when an Evening session starts. A campaign already running may continue until the hard twilight window closes."/>
+                                </StackPanel>
+                                <TextBlock Text="Evening default: do not start a new flat run after Sun altitude -10°. Morning has no soft start cutoff; it uses every remaining usable minute until the hard window closes." TextWrapping="Wrap" Opacity="0.7" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Expander>
                     </StackPanel>
@@ -445,7 +456,9 @@
                         <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Probe wait min (s)" Width="150" VerticalAlignment="Center"/><TextBox Width="65" Text="{Binding MinProbeWaitSeconds, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Probe wait max (s)" Width="150" VerticalAlignment="Center"/><TextBox Width="65" Text="{Binding MaxProbeWaitSeconds, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Wait failsafe (min)" Width="150" VerticalAlignment="Center"/><TextBox Width="65" Text="{Binding MaxWaitMinutes, UpdateSourceTrigger=PropertyChanged}" ToolTip="Maximum continuous wait for one reason before the session exits cleanly."/></StackPanel>
-                        <TextBlock Text="Defaults: adaptive ON, 5–30 s between feasibility probes. Rejected probes are not saved; only accepted flats enter the NINA save pipeline." TextWrapping="Wrap" Opacity="0.7" Margin="0,4,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Skip late evening start" Width="150" VerticalAlignment="Center"/><CheckBox IsChecked="{Binding SkipLateEveningStart}" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2"><TextBlock Text="Latest evening start (°)" Width="150" VerticalAlignment="Center"/><TextBox Width="65" Text="{Binding LatestEveningStartSunAltitudeDegrees, UpdateSourceTrigger=PropertyChanged}" ToolTip="Default -10°. Only checked when an Evening session starts."/></StackPanel>
+                        <TextBlock Text="Defaults: adaptive ON, 5–30 s probes; late-evening start cutoff ON at -10°. Morning has no soft start cutoff. Rejected probes are not saved; only accepted flats enter the NINA save pipeline." TextWrapping="Wrap" Opacity="0.7" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
             </Expander>
