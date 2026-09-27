@@ -1,14 +1,41 @@
 # Sky Flat Campaign Manager
 
-NINA plugin that automates **multi-evening and multi-morning sky flat campaigns** without a flat panel.
+[![CI](https://github.com/grm/sky-flat-campaign-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/grm/sky-flat-campaign-manager/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/grm/sky-flat-campaign-manager)](https://github.com/grm/sky-flat-campaign-manager/releases/latest)
+[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE.txt)
+[![N.I.N.A. 3.2+](https://img.shields.io/badge/N.I.N.A.-3.2%2B-4C8BF5)](https://nighttime-imaging.eu/)
 
-Progress is persisted after every accepted flat so a crash, power loss, or closed twilight window can resume the next session. A completed campaign remains valid for a configurable period (default **60 days**) and can be invalidated manually after optical changes.
+**Automated evening and morning sky-flat campaigns for N.I.N.A., without a flat panel.**
 
-**SQM / weather SkyQuality is optional.** The default and authoritative path is camera ADU analysis.
+Sky Flat Campaign Manager (SFCM) turns twilight flats into a persistent, unattended workflow. It decides when the sky is usable, selects the next filter, adapts exposure time as twilight changes, validates each flat against the configured histogram target, and resumes unfinished campaigns on later evenings or mornings.
+
+Only **accepted flats** are saved to disk and NINA Image History. Rejected exposure-search probes are discarded. Campaign state is persisted after every accepted flat, so a crash, power loss, weather interruption, or closed twilight window does not lose progress.
+
+**SQM / weather SkyQuality is optional.** Camera histogram/ADU measurement remains authoritative.
 
 **Author:** Jérémie Klein ([@grm](https://github.com/grm))  
-**Project:** [github.com/grm/sky-flat-campaign-manager](https://github.com/grm/sky-flat-campaign-manager)  
-**Releases:** [GitHub Releases](https://github.com/grm/sky-flat-campaign-manager/releases) · **Support:** [GitHub Issues](https://github.com/grm/sky-flat-campaign-manager/issues)
+**Repository:** [github.com/grm/sky-flat-campaign-manager](https://github.com/grm/sky-flat-campaign-manager)  
+**Download:** [Latest release](https://github.com/grm/sky-flat-campaign-manager/releases/latest) · **Support:** [GitHub Issues](https://github.com/grm/sky-flat-campaign-manager/issues) · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+
+## What SFCM does
+
+- Runs from a single **Sky Flat Campaign Container** in NINA Advanced Sequencer.
+- Persists per-filter progress across nights and resumes exactly where it stopped.
+- Supports evening and morning twilight with direction-aware astronomical windows.
+- Adapts exposure and filter selection as sky brightness changes.
+- Supports per-filter target count, minimum usable count, histogram target/tolerance, gain, offset, binning, exposure bounds, manual order, and priority.
+- Can wait when started too early and can **skip a late evening start** to protect science imaging time.
+- Exposes blocking lifecycle hooks for Ground Station, Discord notifications, scripts, or any other NINA instruction.
+- Works without an SQM; optional SkyQuality data is used only for anticipation.
+- Includes dry-run, simulation, diagnostics, campaign reset/invalidate, and reusable sequencer conditions.
+
+## Quick start
+
+1. Download the latest `SkyFlatCampaignManager-<version>.zip` from [GitHub Releases](https://github.com/grm/sky-flat-campaign-manager/releases/latest).
+2. Extract it to `%LOCALAPPDATA%\NINA\Plugins\3.0.0\Sky Flat Campaign Manager\`.
+3. Restart NINA and enable **Sky Flat Campaign Manager** in Plugins.
+4. Configure your filters in the plugin options page.
+5. Add **Sky Flat Campaign Container** to the Advanced Sequencer, choose `Evening` or `Morning`, and enable **Wait for sky**.
 
 ## Compatible NINA versions
 
@@ -26,6 +53,10 @@ Progress is persisted after every accepted flat so a crash, power loss, or close
 - Atomic JSON campaign state with schema versioning
 - Dry-run and simulation modes
 - Optional hybrid SQM anticipation via weather `SkyQuality`
+
+## Screenshots
+
+Screenshots of the options page, the Advanced Sequencer container, and a running campaign will be added here. The repository keeps these under `docs/images/` so the same assets can also be used by NINA's plugin metadata.
 
 ## Installation
 
