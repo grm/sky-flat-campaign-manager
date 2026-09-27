@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.10 — 2026-09-27
+
+### Changed
+- Refreshed the NINA plugin information card with the correct author, homepage, repository, changelog, tags, copyright, short description, and a fuller feature-oriented long description.
+- Added plugin visuals for NINA: Options/per-filter configuration as the featured image, Advanced Sequencer lifecycle events as the primary screenshot, and advanced twilight/campaign settings as the alternate screenshot.
+- All NINA image metadata now uses stable raw GitHub URLs from the canonical `grm/sky-flat-campaign-manager` repository.
+- Added and packaged the MPL-2.0 license alongside the plugin.
+
 ## 0.0.9 — 2026-09-26
 
 ### Added
