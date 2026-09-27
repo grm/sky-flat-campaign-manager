@@ -17,9 +17,9 @@ using SkyFlatCampaignManager.Core;
 [assembly: AssemblyMetadata("Homepage", "https://github.com/grm/sky-flat-campaign-manager")]
 [assembly: AssemblyMetadata("Tags", "Flats,Sky Flats,Sequencer,Automation,Calibration,Twilight")]
 [assembly: AssemblyMetadata("ChangelogURL", "https://github.com/grm/sky-flat-campaign-manager/blob/main/CHANGELOG.md")]
-[assembly: AssemblyMetadata("FeaturedImageURL", "")]
-[assembly: AssemblyMetadata("ScreenshotURL", "")]
-[assembly: AssemblyMetadata("AltScreenshotURL", "")]
+[assembly: AssemblyMetadata("FeaturedImageURL", "https://raw.githubusercontent.com/grm/sky-flat-campaign-manager/main/docs/images/options-page.png")]
+[assembly: AssemblyMetadata("ScreenshotURL", "https://raw.githubusercontent.com/grm/sky-flat-campaign-manager/main/docs/images/container-events.png")]
+[assembly: AssemblyMetadata("AltScreenshotURL", "https://raw.githubusercontent.com/grm/sky-flat-campaign-manager/main/docs/images/container-advanced.png")]
 [assembly: AssemblyMetadata("LongDescription", @"Sky Flat Campaign Manager (SFCM) automates sky-flat acquisition in N.I.N.A. for observatories that do not use a flat panel.
 
 ## Highlights

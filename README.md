@@ -56,7 +56,23 @@ Only **accepted flats** are saved to disk and NINA Image History. Rejected expos
 
 ## Screenshots
 
-Screenshots of the options page, the Advanced Sequencer container, and a running campaign will be added here. The repository keeps these under `docs/images/` so the same assets can also be used by NINA's plugin metadata.
+### Plugin options
+
+Configure campaign defaults and per-filter targets, histogram goals, gain/offset/binning, exposure limits, evening/morning order, and priority.
+
+![Sky Flat Campaign Manager options](docs/images/options-page.png)
+
+### Advanced Sequencer container and lifecycle events
+
+The **Sky Flat Campaign Container** evaluates campaign state itself and exposes blocking lifecycle hooks for notifications, scripts, Ground Station, or any other NINA instruction.
+
+![Sky Flat Campaign Container event hooks](docs/images/container-events.png)
+
+### Campaign and twilight controls
+
+Configure pointing/tracking, adaptive probe timing, failsafe behavior, and the late-evening start guard that can hand control back to science imaging when twilight is already too advanced.
+
+![Sky Flat Campaign Container advanced settings](docs/images/container-advanced.png)
 
 ## Installation
 
