@@ -6,6 +6,10 @@ Progress is persisted after every accepted flat so a crash, power loss, or close
 
 **SQM / weather SkyQuality is optional.** The default and authoritative path is camera ADU analysis.
 
+**Author:** Jérémie Klein ([@grm](https://github.com/grm))  
+**Project:** [github.com/grm/sky-flat-campaign-manager](https://github.com/grm/sky-flat-campaign-manager)  
+**Releases:** [GitHub Releases](https://github.com/grm/sky-flat-campaign-manager/releases) · **Support:** [GitHub Issues](https://github.com/grm/sky-flat-campaign-manager/issues)
+
 ## Compatible NINA versions
 
 - **NINA 3.2.x** (`MinimumApplicationVersion` / NuGet `NINA.Plugin` **3.2.0.9001**)
