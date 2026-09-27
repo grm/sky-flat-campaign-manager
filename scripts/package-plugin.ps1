@@ -19,6 +19,7 @@ New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
 Copy-Item (Join-Path $out "publish/SkyFlatCampaignManager.dll") $stage
 Copy-Item (Join-Path $out "publish/SkyFlatCampaignManager.Core.dll") $stage
+Copy-Item (Join-Path $root "LICENSE.txt") $stage
 if (Test-Path (Join-Path $out "publish/SkyFlatCampaignManager.pdb")) {
   Copy-Item (Join-Path $out "publish/SkyFlatCampaignManager.pdb") $stage
 }
@@ -34,7 +35,7 @@ Write-Host "Package: $zip"
 Get-ChildItem $stage | ForEach-Object { Write-Host " - $($_.Name)" }
 
 # Content verification
-$required = @("SkyFlatCampaignManager.dll", "SkyFlatCampaignManager.Core.dll")
+$required = @("SkyFlatCampaignManager.dll", "SkyFlatCampaignManager.Core.dll", "LICENSE.txt")
 foreach ($r in $required) {
   if (-not (Test-Path (Join-Path $stage $r))) { throw "Missing required package file: $r" }
 }
