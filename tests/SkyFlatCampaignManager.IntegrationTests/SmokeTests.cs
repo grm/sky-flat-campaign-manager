@@ -55,4 +55,30 @@ public class SmokeTests
         }
     }
 
+    [Fact]
+    public void Plugin_metadata_points_to_the_real_repository_and_license_is_packaged()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        string? root = null;
+        while (dir is not null && root is null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "SkyFlatCampaignManager.sln"))) root = dir.FullName;
+            dir = dir.Parent;
+        }
+
+        root.Should().NotBeNull("the integration test should be running from a repository checkout");
+
+        var assemblyInfo = File.ReadAllText(Path.Combine(root!, "src", "SkyFlatCampaignManager", "Properties", "AssemblyInfo.cs"));
+        assemblyInfo.Should().Contain("https://github.com/grm/sky-flat-campaign-manager");
+        assemblyInfo.Should().NotContain("github.com/skyflatcampaignmanager/");
+        assemblyInfo.Should().Contain("Jérémie Klein (@grm)");
+        assemblyInfo.Should().Contain("Mozilla Public License 2.0");
+
+        File.Exists(Path.Combine(root!, "LICENSE.txt")).Should().BeTrue();
+
+        var packageScript = File.ReadAllText(Path.Combine(root!, "scripts", "package-plugin.ps1"));
+        packageScript.Should().Contain("LICENSE.txt");
+    }
+
+
 }
