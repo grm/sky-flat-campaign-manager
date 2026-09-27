@@ -72,7 +72,7 @@ public class SmokeTests
         assemblyInfo.Should().Contain("https://github.com/grm/sky-flat-campaign-manager");
         assemblyInfo.Should().NotContain("github.com/skyflatcampaignmanager/");
         assemblyInfo.Should().Contain("Jérémie Klein (@grm)");
-        assemblyInfo.Should().Contain("Mozilla Public License 2.0");
+        assemblyInfo.Should().Contain("[assembly: AssemblyMetadata(\"License\", \"MPL-2.0\")]");
 
         File.Exists(Path.Combine(root!, "LICENSE.txt")).Should().BeTrue();
 
