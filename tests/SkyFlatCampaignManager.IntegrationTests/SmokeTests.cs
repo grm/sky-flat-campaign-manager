@@ -81,4 +81,31 @@ public class SmokeTests
     }
 
 
+    [Fact]
+    public void Sequencer_instructions_clear_persistent_application_status_on_exit()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        string? root = null;
+        while (dir is not null && root is null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "SkyFlatCampaignManager.sln"))) root = dir.FullName;
+            dir = dir.Parent;
+        }
+
+        root.Should().NotBeNull("the integration test should be running from a repository checkout");
+
+        foreach (var relativePath in new[]
+        {
+            Path.Combine("src", "SkyFlatCampaignManager", "Sequencer", "Containers", "SkyFlatCampaignContainer.cs"),
+            Path.Combine("src", "SkyFlatCampaignManager", "Sequencer", "Instructions", "RunSkyFlatCampaignInstruction.cs")
+        })
+        {
+            var source = File.ReadAllText(Path.Combine(root!, relativePath));
+            source.Should().Contain("progress?.Report(new ApplicationStatus { Status = string.Empty })");
+            source.Should().Contain("_applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = string.Empty })");
+            source.Should().Contain("statusActive = false");
+        }
+    }
+
+
 }

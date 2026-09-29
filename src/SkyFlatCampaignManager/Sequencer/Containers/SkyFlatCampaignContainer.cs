@@ -236,6 +236,12 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         EventContext.Mode = Mode.ToString();
         SkyFlatEventContextAccessor.Set(EventContext);
 
+        // NINA's application-status bar is persistent until the publishing source clears it.
+        // Progress<T> callbacks may be marshalled asynchronously, so serialize status publishing
+        // and teardown to prevent a late callback from re-posting stale SFCM text after completion.
+        var statusSync = new object();
+        var statusActive = true;
+
         try
         {
             var request = new SkyFlatSessionRequest
@@ -274,15 +280,20 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
 
             var progressAdapter = new Progress<SkyFlatSessionProgress>(p =>
             {
-                EventContext.ApplyProgress(p);
-                var levelText = p.MeasuredHistogramFraction is { } frac
-                    ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU"
-                    : "n/a";
-                ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
-                RaisePropertyChanged(nameof(ProgressText));
-                RaiseContextProperties();
-                progress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {ProgressText}" });
-                _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = ProgressText });
+                lock (statusSync)
+                {
+                    if (!statusActive) return;
+
+                    EventContext.ApplyProgress(p);
+                    var levelText = p.MeasuredHistogramFraction is { } frac
+                        ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU"
+                        : "n/a";
+                    ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
+                    RaisePropertyChanged(nameof(ProgressText));
+                    RaiseContextProperties();
+                    progress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {ProgressText}" });
+                    _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = ProgressText });
+                }
             });
 
             var result = await runner.RunAsync(request, progressAdapter, token).ConfigureAwait(false);
@@ -299,6 +310,15 @@ public sealed class SkyFlatCampaignContainer : SequentialContainer, ISkyFlatSess
         }
         finally
         {
+            // Clear both status channels immediately when SFCM yields control back to NINA.
+            // NINA does not auto-expire source statuses; an empty status removes the SFCM row.
+            lock (statusSync)
+            {
+                statusActive = false;
+                progress?.Report(new ApplicationStatus { Status = string.Empty });
+                _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = string.Empty });
+            }
+
             _activeProgress = null;
             SkyFlatEventContextAccessor.Clear(EventContext);
         }

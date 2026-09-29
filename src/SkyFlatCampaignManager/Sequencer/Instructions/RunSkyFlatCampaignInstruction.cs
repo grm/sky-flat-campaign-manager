@@ -181,19 +181,38 @@ public class RunSkyFlatCampaignInstruction : SequenceItem
             }
         };
 
+        var statusSync = new object();
+        var statusActive = true;
         var progressAdapter = new Progress<SkyFlatSessionProgress>(p =>
         {
-            var levelText = p.MeasuredHistogramFraction is { } frac ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU" : "n/a";
-            ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
-            RaisePropertyChanged(nameof(ProgressText));
-            progress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {ProgressText}" });
-            _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = ProgressText });
+            lock (statusSync)
+            {
+                if (!statusActive) return;
+
+                var levelText = p.MeasuredHistogramFraction is { } frac ? $"{frac * 100.0:F1}%/{p.MeasuredAdu:F0}ADU" : "n/a";
+                ProgressText = $"{p.State}: {p.CurrentFilter} level={levelText} exp={p.ExposureSeconds:F3}s rem={p.Remaining} — {p.StatusMessage}";
+                RaisePropertyChanged(nameof(ProgressText));
+                progress?.Report(new ApplicationStatus { Status = $"[{PluginIdentity.ShortName}] {ProgressText}" });
+                _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = ProgressText });
+            }
         });
 
-        var result = await runner.RunAsync(request, progressAdapter, token).ConfigureAwait(false);
-        ProgressText = $"{result.FinalState}: {result.StopReason} (accepted={result.AcceptedThisSession}, rejected={result.RejectedThisSession})";
-        RaisePropertyChanged(nameof(ProgressText));
-        if (result.FinalState == SessionState.Faulted) throw new SequenceEntityFailedException(ProgressText);
+        try
+        {
+            var result = await runner.RunAsync(request, progressAdapter, token).ConfigureAwait(false);
+            ProgressText = $"{result.FinalState}: {result.StopReason} (accepted={result.AcceptedThisSession}, rejected={result.RejectedThisSession})";
+            RaisePropertyChanged(nameof(ProgressText));
+            if (result.FinalState == SessionState.Faulted) throw new SequenceEntityFailedException(ProgressText);
+        }
+        finally
+        {
+            lock (statusSync)
+            {
+                statusActive = false;
+                progress?.Report(new ApplicationStatus { Status = string.Empty });
+                _applicationStatusMediator.StatusUpdate(new ApplicationStatus { Source = PluginIdentity.ShortName, Status = string.Empty });
+            }
+        }
     }
 
     public override object Clone() => new RunSkyFlatCampaignInstruction(this);
