@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 using SkyFlatCampaignManager.Core;
 
 [assembly: Guid("60fa0ecc-a71d-49a9-9890-274d3d5ff1d8")]
-[assembly: AssemblyVersion("0.0.10.0")]
-[assembly: AssemblyFileVersion("0.0.10.0")]
+[assembly: AssemblyVersion("0.0.11.0")]
+[assembly: AssemblyFileVersion("0.0.11.0")]
 [assembly: AssemblyTitle("Sky Flat Campaign Manager")]
 [assembly: AssemblyDescription("Automates evening and morning sky-flat campaigns in NINA with adaptive twilight timing, persistent progress, per-filter exposure control, and Advanced Sequencer integration.")]
 [assembly: AssemblyCompany("Jérémie Klein (@grm)")]
