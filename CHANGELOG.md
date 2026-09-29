@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.11 — 2026-09-30
+
+### Fixed
+- Clear the SFCM application-status message when a sky-flat session finishes, skips, faults, or is cancelled. NINA keeps source statuses indefinitely until they are explicitly cleared, which could leave the final `StoppedByWindow` message visible during later imaging.
+- Clear both NINA status channels used by SFCM: the sequencer progress channel and the application-status mediator.
+- Guard asynchronously marshalled progress callbacks so a late callback cannot re-publish stale SFCM text after teardown.
+- Apply the same cleanup to the legacy **Run Sky Flat Campaign** instruction.
+
 ## 0.0.10 — 2026-09-27
 
 ### Changed
